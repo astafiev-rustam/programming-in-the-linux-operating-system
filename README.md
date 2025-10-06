@@ -26,7 +26,7 @@ https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/
 | **3** | **[Управление пакетами и программным обеспечением.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-3)** |
 | **4** | **[Сетевые возможности и отладка.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-4)** |
 | **5** | **[Инструментарий разработчика: компиляция и отладка.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-5)** |
-| **6** | **[Создание и использование разделяемых библиотек.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-6** | 
+| **6** | **[Создание и использование разделяемых библиотек.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-6)**| 
 | **7** | **[Системное программирование: работа с файлами и процессами.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-7)** |
 | **8** | **[Создание пакетов для распространения программ.](https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-8)** |
 
