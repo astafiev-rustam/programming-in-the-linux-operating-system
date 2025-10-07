@@ -8,813 +8,996 @@
 |СЕМЕСТР|1 семестр, 2025/2026 уч. год|
 
 Ссылка на материал: <br>
-https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-7
+https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-8
 
-# **Лекция №7: Системное программирование: работа с файлами и процессами**
+# **Лекция №8: Создание пакетов для распространения программ**
 
 ## **Теоретическая вводная**
 
-**Системное программирование: когда код встречается с операционной системой**
+**Философия пакетного менеджмента: от хаоса к порядку**
 
-Системное программирование в Linux — это искусство прямого общения с ядром операционной системы, минуя высокоуровневые абстракции. Представьте, что обычное программирование — это вождение автомобиля с автоматической коробкой передач: вы нажимаете педали, поворачиваете руль, и машина делает всю сложную работу за вас. Системное программирование — это управление гоночным болидом с механической коробкой: вы сами контролируете каждую передачу, обороты двигателя, момент сцепления, получая полный контроль над поведением машины, но и принимая на себя всю ответственность за каждое действие.
+В мире Linux распространение программного обеспечения — это не просто копирование исполняемых файлов. Это целая философия, основанная на принципах управляемости, воспроизводимости и надежности. Представьте, что вы переезжаете в новый дом. Можно просто набросать все вещи в грузовик в случайном порядке, а по приезду часами искать нужное. А можно аккуратно упаковать каждую вещь в промаркированную коробку, составить опись содержимого и расставить коробки в логическом порядке — именно так работают пакетные системы в Linux.
 
-В основе этого подхода лежат системные вызовы — специальные функции, которые предоставляет ядро Linux для взаимодействия с аппаратными ресурсами. Когда ваша программа хочет создать файл, запустить процесс или выделить память, она в конечном счете обращается к ядру через эти вызовы. В отличие от стандартных библиотечных функций, которые могут быть переносимы между разными операционными системами, системные вызовы тесно связаны с конкретной ОС и предоставляют самый низкоуровневый и эффективный интерфейс для работы с системой.
+Пакет — это не просто архив с программой. Это интеллектуальная единица распространения, которая содержит не только файлы программы, но и метаинформацию о том, куда эти файлы должны быть установлены, какие другие пакеты требуются для работы (зависимости), какие действия нужно выполнить до и после установки, как корректно удалить пакет и многое другое. Это своего рода "контейнер" с инструкцией по сборке.
 
-**Файловые дескрипторы: универсальные пропуска в мир ввода-вывода**
+**Две великие экосистемы: DEB и RPM**
 
-В Linux всё есть файл — этот принцип пронизывает всю архитектуру системы. Но что это на самом деле означает? Речь идет не только о текстовых документах и исполняемых программах. Сокеты сетевых соединений, устройства вроде клавиатуры и мыши, каналы межпроцессного взаимодействия — все они представлены как файлы. И ключом к доступу ко всем этим ресурсам являются файловые дескрипторы.
+В мире Linux исторически сложились две основные системы пакетов, каждая со своей философией и инструментарией. Система DEB, рожденная в недрах Debian и унаследованная Ubuntu, основана на простых, но мощных инструментах: `dpkg` для работы с отдельными пакетами и `APT` для разрешения зависимостей. Пакеты DEB — это, по сути, архивы ar, содержащие два tar-архива: один с данными, другой с контрольной информацией.
 
-Файловый дескриптор — это просто число, которое выдает ядро при открытии файла, сокета или другого ресурса. Но за этим числом скрывается мощная абстракция. Дескрипторы 0, 1 и 2 зарезервированы для стандартного ввода (stdin), вывода (stdout) и ошибок (stderr) соответственно. Когда вы открываете файл, ядро возвращает следующий свободный дескриптор (обычно 3), и через этот номер вы можете читать и писать данные, управлять позицией в файле и выполнять другие операции.
+С другой стороны, система RPM (Red Hat Package Manager) доминирует в Red Hat, CentOS, Fedora и openSUSE. RPM пакеты используют собственную бинарную структуру и обладают мощной системой скриптов, которые выполняются на разных этапах установки. Инструмент `rpm` работает с отдельными пакетами, а `yum` и его современный наследник `dnf` управляют репозиториями и разрешают зависимости.
 
-Низкоуровневые функции вроде `open()`, `read()`, `write()` и `close()` работают непосредственно с этими дескрипторами, предоставляя полный контроль над операциями ввода-вывода. В отличие от высокоуровневых функций из стандартной библиотеки C, они не буферизуют данные (если явно не попросить), что делает их идеальными для ситуаций, где важны производительность и точное управление.
+Интересно, что обе системы в конечном счете решают одни и те же задачи, но подходят к ним с разных сторон. DEB система часто считается более простой для создания пакетов, в то время как RPM предоставляет более тонкий контроль над процессом установки.
 
-**Процессы: независимые вселенные выполнения**
+**Структура пакета: анатомия идеальной упаковки**
 
-Каждая программа в Linux работает в своем собственном процессе — изолированном окружении, которое ядро защищает от вмешательства других процессов. Представьте, что каждый процесс — это отдельная комната в большом отеле: у каждой свои окна (ввод-вывод), своя мебель (память), свои жильцы (потоки выполнения), и стены между комнатами обеспечивают приватность и безопасность.
+Хороший пакет похож на хорошо организованный чемодан путешественника. Верхний слой — это контрольная информация: имя пакета, версия, архитектура, зависимости, описание. Это то, что видят менеджеры пакетов и пользователи. Под этим слоем находятся сами файлы программы, аккуратно разложенные по правильным каталогам: исполняемые файлы в `/usr/bin/`, библиотеки в `/usr/lib/`, документация в `/usr/share/doc/`, конфигурационные файлы в `/etc/`.
 
-Когда вы запускаете программу, ядро создает новый процесс, копируя структуру процесса-родителя. Но простое копирование было бы неэффективно, особенно если новая программа сразу же заменяет себя другой с помощью `exec()`. Поэтому Linux использует механизм copy-on-write: память копируется не сразу, а только когда один из процессов пытается изменить общие данные. Это оптимизация, которая демонстрирует, насколько глубоко продумана архитектура системы.
+Но настоящая магия происходит в скриптах-помощниках: preinst выполняется до распаковки файлов, postinst — после, prerm — перед удалением, postrm — после удаления. Эти скрипты позволяют создавать пользователей, настраивать службы, обновлять конфигурации — в общем, делать все, что нужно для корректной интеграции программы в систему.
 
-Функция `fork()` — это волшебный портал, который создает почти идентичную копию текущего процесса. "Почти" — потому что копия получает свой собственный PID и некоторые другие атрибуты, но наследует открытые файловые дескрипторы, переменные окружения и другую контекстную информацию. А `exec()` — это перерождение: процесс заменяет свою программу на совершенно другую, сохраняя при этом свой PID и некоторые другие характеристики.
+**Сборка из исходников: когда готовых пакетов недостаточно**
 
-**Межпроцессное взаимодействие: искусство общения между мирами**
+Несмотря на все удобства бинарных пакетов, иногда возникает необходимость собрать программу из исходного кода. Это может потребоваться, когда нужна самая свежая версия, не попавшая еще в репозитории, или когда требуются специфические опции конфигурации, или просто для обучения.
 
-Процессы, будучи изолированными, иногда нуждаются в общении друг с другом. Linux предоставляет богатый арсенал средств для межпроцессного взаимодействия (IPC). Самый простой из них — анонимные каналы (pipes), которые создаются с помощью системного вызова `pipe()`. Канал — это однонаправленный канал связи: что записано в один конец, может быть прочитано из другого.
+Классическая трилогия `./configure && make && make install` знакома каждому, кто хоть раз собирал программу в Linux. Но за этой простотой скрывается сложная система autotools, которая проверяет окружение, настраивает сборку под конкретную систему и генерирует Makefile'ы. Современные проекты все чаще используют CMake — более кроссплатформенную и мощную систему сборки.
 
-Каналы идеально подходят для соединения вывода одной программы со входом другой — именно это происходит, когда вы используете символ `|` в командной строке. Но их возможности на этом не заканчиваются. Комбинируя `fork()` и `pipe()`, можно создавать сложные цепочки обработки данных, где каждый процесс выполняет свою специализированную задачу, передавая результаты следующему в конвейере.
+**Makefile: сердце процесса сборки**
 
-Более сложные механизмы IPC, такие как именованные каналы (FIFO), разделяемая память и семафоры, предоставляют еще больше возможностей для взаимодействия между процессами. Но даже простые анонимные каналы, правильно использованные, могут решать astonishingly сложные задачи координации и передачи данных.
+Makefile — это не просто список команд для компиляции. Это декларативное описание зависимостей между файлами и правил их преобразования. Хороший Makefile знает, что нужно пересобрать только те части проекта, которые действительно изменились, экономя время разработчика. Он определяет цели (targets), зависимости, переменные и правила — создавая тем самым карту сборки проекта.
 
-**Сигналы: асинхронные прерывания для процессов**
+Переменные в Makefile — это не просто подстановки, а мощный механизм настройки. `CC` определяет компилятор, `CFLAGS` — флаги компиляции, `DESTDIR` — корневой каталог для установки. Понимание этих переменных позволяет создавать гибкие и переносимые системы сборки.
 
-Сигналы — это способ, которым ядро и процессы могут асинхронно прерывать выполнение друг друга. Представьте, что вы работаете в офисе, и кто-то стучится в дверь — это сигнал. Вы можете решить немедленно ответить на стук (обработать сигнал), отложить реакцию на потом или вообще проигнорировать его.
+**Современные тенденции: контейнеры и универсальные пакеты**
 
-В Linux есть множество стандартных сигналов: SIGTERM для вежливого запроса на завершение, SIGKILL для немедленного "убийства", SIGINT для прерывания с клавиатуры (Ctrl+C), SIGHUP для уведомления о "отключении терминала". Процессы могут перехватывать большинство сигналов и реагировать на них осмысленным образом — сохранять данные, закрывать соединения, перечитывать конфигурационные файлы.
+В последние годы традиционные системы пакетов получили развитие в виде универсальных форматов вроде Snap, Flatpak и AppImage. Эти системы решают проблему зависимости от конкретного дистрибутива, упаковывая программу вместе со всеми ее зависимостями в изолированную среду. Это похоже на переезд не с коробками, а с готовыми мебельными гарнитурами, которые можно поставить в любой квартире.
 
-Умение работать с сигналами — важный навык системного программиста. Это позволяет создавать программы, которые корректно реагируют на внешние события, gracefully завершаются при получении команды на остановку и в целом ведут себя как "хорошие граждане" в экосистеме операционной системы.
+Однако традиционные пакетные системы никуда не делись — они остаются фундаментом дистрибутивов Linux, обеспечивая тесную интеграцию программ с операционной системой и эффективное использование ресурсов.
 
 ---
 
 ## **Практические примеры**
 
-### **Пример 1: Низкоуровневая работа с файлами через файловые дескрипторы**
+### **Пример 1: Создание простого DEB-пакета вручную**
 
-**Цель:** Научиться использовать системные вызовы для работы с файлами.
+**Цель:** Научиться создавать DEB-пакеты, понимая их структуру и принципы работы.
 
 ```bash
-# 1. Создаем программу для демонстрации низкоуровневых операций с файлами
-cat > file_operations.c << 'EOF'
+# 1. Создаем простую программу для упаковки
+cat > hello_package.c << 'EOF'
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <sys/stat.h>
 
 int main() {
-    int fd;
-    ssize_t bytes;
-    char buffer[100];
+    printf("=================================\n");
+    printf("    Hello from DEB Package!      \n");
+    printf("=================================\n");
+    printf("This program was installed from a\n");
+    printf("proper Debian package. Enjoy!    \n");
+    printf("=================================\n");
     
-    printf("=== Низкоуровневая работа с файлами ===\n\n");
+    // Проверяем аргументы командной строки
+    printf("Program name: hello-package\n");
+    printf("Version: 1.0-1\n");
+    printf("Architecture: amd64\n");
     
-    // 1. Создаем и открываем файл для записи (O_CREAT | O_WRONLY)
-    // 0644 - права доступа: владелец читает/пишет, остальные только читают
-    fd = open("test_file.txt", O_CREAT | O_WRONLY | O_TRUNC, 0644);
-    if (fd == -1) {
-        perror("Ошибка при создании файла");
-        exit(1);
-    }
-    printf("1. Файл создан, дескриптор: %d\n", fd);
-    
-    // 2. Записываем данные в файл
-    char* data = "Привет, системное программирование!\n";
-    bytes = write(fd, data, strlen(data));
-    printf("2. Записано %zd байт в файл\n", bytes);
-    
-    // 3. Закрываем файл
-    close(fd);
-    printf("3. Файл закрыт\n");
-    
-    // 4. Открываем файл для чтения
-    fd = open("test_file.txt", O_RDONLY);
-    if (fd == -1) {
-        perror("Ошибка при открытии файла");
-        exit(1);
-    }
-    printf("4. Файл открыт для чтения, дескриптор: %d\n", fd);
-    
-    // 5. Читаем данные из файла
-    bytes = read(fd, buffer, sizeof(buffer) - 1);
-    if (bytes == -1) {
-        perror("Ошибка при чтении файла");
-        close(fd);
-        exit(1);
-    }
-    buffer[bytes] = '\0'; // Добавляем нулевой терминатор
-    printf("5. Прочитано %zd байт:\n%s\n", bytes, buffer);
-    
-    // 6. Получаем информацию о файле
-    struct stat file_info;
-    if (fstat(fd, &file_info) == 0) {
-        printf("6. Информация о файле:\n");
-        printf("   Размер: %ld байт\n", file_info.st_size);
-        printf("   Inode: %ld\n", file_info.st_ino);
-        printf("   Права доступа: %o\n", file_info.st_mode & 0777);
-    }
-    
-    // 7. Закрываем файл
-    close(fd);
-    
-    // 8. Демонстрация работы с разными позициями в файле
-    fd = open("test_file.txt", O_RDWR);
-    lseek(fd, 8, SEEK_SET); // Перемещаемся на 8 байт от начала
-    write(fd, "LINUX", 5);   // Заменяем часть текста
-    
-    lseek(fd, 0, SEEK_SET); // Возвращаемся в начало
-    bytes = read(fd, buffer, sizeof(buffer) - 1);
-    buffer[bytes] = '\0';
-    printf("7. После модификации: %s\n", buffer);
-    
-    close(fd);
-    
-    printf("\n=== Демонстрация завершена ===\n");
     return 0;
 }
 EOF
 
-# 2. Компилируем и запускаем программу
-gcc file_operations.c -o file_operations
-./file_operations
+# 2. Компилируем программу
+gcc hello_package.c -o hello-package
 
-# 3. Проверяем созданный файл
-echo -e "\n=== Содержимое созданного файла ==="
-cat test_file.txt
+# 3. Создаем структуру каталогов для пакета
+mkdir -p myhello-package/DEBIAN
+mkdir -p myhello-package/usr/bin
+mkdir -p myhello-package/usr/share/doc/myhello-package
+mkdir -p myhello-package/usr/share/man/man1
 
-# 4. Проверяем права доступа
-echo -e "\n=== Права доступа к файлу ==="
-ls -la test_file.txt
+# 4. Копируем программу в нужное место
+cp hello-package myhello-package/usr/bin/
+
+# 5. Создаем файл контроля пакета - самый важный файл!
+cat > myhello-package/DEBIAN/control << 'EOF'
+Package: myhello-package
+Version: 1.0-1
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libc6 (>= 2.34)
+Maintainer: Your Name <your.email@example.com>
+Description: A simple hello world demonstration package
+ This is a test package created for educational purposes.
+ It demonstrates the basic structure of a Debian package
+ and shows how to create packages manually.
+ .
+ Features:
+  * Simple hello world program
+  * Proper installation to /usr/bin
+  * Example documentation
+Homepage: https://example.com
+EOF
+
+# 6. Создаем скрипт предустановки
+cat > myhello-package/DEBIAN/preinst << 'EOF'
+#!/bin/bash
+echo "=== myhello-package Pre-Installation ==="
+echo "Checking system requirements..."
+# Проверяем, что система поддерживает нашу архитектуру
+if [ "$(dpkg --print-architecture)" != "amd64" ]; then
+    echo "Warning: This package is built for amd64 architecture"
+fi
+echo "Pre-installation completed successfully"
+EOF
+chmod 755 myhello-package/DEBIAN/preinst
+
+# 7. Создаем скрипт постустановки
+cat > myhello-package/DEBIAN/postinst << 'EOF'
+#!/bin/bash
+echo "=== myhello-package Post-Installation ==="
+echo "The package has been successfully installed!"
+echo "You can now run 'hello-package' from anywhere in the terminal."
+echo "Post-installation completed successfully"
+EOF
+chmod 755 myhello-package/DEBIAN/postinst
+
+# 8. Создаем скрипт предудаления
+cat > myhello-package/DEBIAN/prerm << 'EOF'
+#!/bin/bash
+echo "=== myhello-package Pre-Removal ==="
+echo "Preparing to remove myhello-package..."
+echo "Pre-removal completed successfully"
+EOF
+chmod 755 myhello-package/DEBIAN/prerm
+
+# 9. Создаем скрипт постудаления
+cat > myhello-package/DEBIAN/postrm << 'EOF'
+#!/bin/bash
+echo "=== myhello-package Post-Removal ==="
+echo "Package myhello-package has been completely removed."
+echo "Thank you for using our software!"
+EOF
+chmod 755 myhello-package/DEBIAN/postrm
+
+# 10. Добавляем документацию
+cat > myhello-package/usr/share/doc/myhello-package/README << 'EOF'
+MyHello Package
+===============
+
+This is a demonstration package created for educational purposes.
+
+Installation:
+-------------
+The package installs a single executable: hello-package
+
+Usage:
+------
+Simply run: hello-package
+
+Removal:
+--------
+To remove: sudo dpkg -r myhello-package
+
+License:
+--------
+This is free software. Use at your own risk.
+EOF
+
+# 11. Добавляем man-страницу
+cat > myhello-package/usr/share/man/man1/hello-package.1 << 'EOF'
+.TH HELLO-PACKAGE 1 "2024-01-01" "1.0-1" "User Commands"
+.SH NAME
+hello-package \- a simple hello world demonstration program
+.SH SYNOPSIS
+.B hello-package
+.SH DESCRIPTION
+.B hello-package
+is a demonstration program that shows a friendly greeting message.
+It was created to demonstrate Debian package creation.
+.SH OPTIONS
+This program does not accept any command-line options.
+.SH AUTHOR
+Your Name <your.email@example.com>
+.SH "SEE ALSO"
+.BR echo (1)
+EOF
+gzip -9 myhello-package/usr/share/man/man1/hello-package.1
+
+# 12. Создаем файл авторских прав
+cat > myhello-package/usr/share/doc/myhello-package/copyright << 'EOF'
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: myhello-package
+Source: https://example.com
+
+Files: *
+Copyright: 2024 Your Name <your.email@example.com>
+License: MIT
+
+License: MIT
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+ in the Software without restriction, including without limitation the rights
+ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ copies of the Software, and to permit persons to whom the Software is
+ furnished to do so, subject to the following conditions:
+ .
+ The above copyright notice and this permission notice shall be included in all
+ copies or substantial portions of the Software.
+ .
+ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+EOF
+
+# 13. Собираем пакет
+dpkg-deb --build myhello-package
+
+# 14. Проверяем созданный пакет
+echo "=== Информация о созданном пакете ==="
+dpkg --info myhello-package.deb
+
+echo -e "\n=== Содержимое пакета ==="
+dpkg --contents myhello-package.deb
+
+# 15. Устанавливаем пакет
+echo -e "\n=== Установка пакета ==="
+sudo dpkg -i myhello-package.deb
+
+# 16. Проверяем установку
+echo -e "\n=== Проверка установки ==="
+hello-package
+which hello-package
+
+# 17. Проверяем информацию об установленном пакете
+echo -e "\n=== Информация об установленном пакете ==="
+dpkg -l myhello-package
+dpkg -L myhello-package
+
+# 18. Удаляем пакет
+echo -e "\n=== Удаление пакета ==="
+sudo dpkg -r myhello-package
+
+# 19. Проверяем удаление
+echo -e "\n=== Проверка удаления ==="
+which hello-package || echo "Программа успешно удалена"
 ```
 
-### **Пример 2: Создание процессов с fork() и управление ими**
+### **Пример 2: Создание RPM пакета с использованием spec файла**
 
-**Цель:** Освоить создание процессов и базовое управление ими.
+**Цель:** Освоить создание RPM пакетов с помощью spec файлов.
 
 ```bash
-# 1. Создаем программу для демонстрации работы с процессами
-cat > process_demo.c << 'EOF'
+# 1. Устанавливаем необходимые инструменты для RPM
+sudo apt install rpm || echo "RPM tools not available, continuing with simulation..."
+
+# 2. Создаем программу для упаковки
+cat > rpm-demo.c << 'EOF'
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/types.h>
 
-int main() {
-    pid_t pid;
-    int status;
+int main(int argc, char *argv[]) {
+    printf("=== RPM Package Demonstration ===\n\n");
     
-    printf("=== Демонстрация работы с процессами ===\n\n");
-    printf("Родительский процесс: PID=%d, PPID=%d\n", getpid(), getppid());
-    
-    // Создаем дочерний процесс
-    pid = fork();
-    
-    if (pid == -1) {
-        perror("Ошибка при создании процесса");
-        exit(1);
+    if (argc == 1) {
+        printf("Usage: %s <name>\n", argv[0]);
+        printf("Example: %s Linux\n", argv[0]);
+        return 1;
     }
-    else if (pid == 0) {
-        // Код выполняется в дочернем процессе
-        printf("Дочерний процесс: PID=%d, PPID=%d\n", getpid(), getppid());
-        
-        // Имитируем работу дочернего процесса
-        for (int i = 0; i < 3; i++) {
-            printf("Дочерний процесс: работаю... (%d/3)\n", i + 1);
-            sleep(1);
+    
+    printf("Hello %s from RPM package!\n", argv[1]);
+    printf("\nPackage Information:\n");
+    printf("  Name: rpm-demo\n");
+    printf("  Version: 1.0\n");
+    printf("  Release: 1\n");
+    printf("  Architecture: x86_64\n");
+    
+    return 0;
+}
+EOF
+
+# 3. Компилируем программу
+gcc rpm-demo.c -o rpm-demo
+
+# 4. Создаем структуру для сборки RPM
+mkdir -p rpm-build/{BUILD,RPMS,SOURCES,SPECS,SRPMS,tmp}
+
+# 5. Создаем архив с исходным кодом
+tar -czvf rpm-build/SOURCES/rpm-demo-1.0.tar.gz rpm-demo
+
+# 6. Создаем spec файл - сердце RPM пакета
+cat > rpm-build/SPECS/rpm-demo.spec << 'EOF'
+Name:           rpm-demo
+Version:        1.0
+Release:        1%{?dist}
+Summary:        A demonstration RPM package
+
+Group:          Applications/System
+License:        MIT
+URL:            https://example.com
+Source0:        %{name}-%{version}.tar.gz
+BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+
+BuildArch:      x86_64
+Requires:       glibc
+
+%description
+This is a demonstration RPM package created for educational purposes.
+It shows how to create proper RPM packages with all necessary components.
+
+%prep
+%setup -q
+
+%build
+# В реальном пакете здесь была бы компиляция
+echo "Building the package..."
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}/%{_bindir}
+mkdir -p %{buildroot}/%{_mandir}/man1
+mkdir -p %{buildroot}/%{_docdir}/%{name}
+
+# Устанавливаем программу
+install -m 755 rpm-demo %{buildroot}/%{_bindir}
+
+# Создаем man страницу
+cat > %{buildroot}/%{_mandir}/man1/rpm-demo.1 << 'MANPAGE'
+.TH RPM-DEMO 1 "2024-01-01" "1.0" "User Commands"
+.SH NAME
+rpm-demo \- a demonstration RPM package
+.SH SYNOPSIS
+.B rpm-demo
+.I name
+.SH DESCRIPTION
+.B rpm-demo
+is a demonstration program that shows a personalized greeting.
+.SH OPTIONS
+.I name
+The name to display in the greeting.
+.SH EXAMPLES
+.TP
+.B rpm-demo Linux
+Displays "Hello Linux from RPM package!"
+.SH AUTHOR
+Your Name <your.email@example.com>
+MANPAGE
+
+# Создаем документацию
+cat > %{buildroot}/%{_docdir}/%{name}/README << 'DOCUMENTATION'
+RPM Demo Package
+================
+
+This is a demonstration RPM package.
+
+Features:
+---------
+* Simple greeting program
+* Proper RPM packaging
+* Man page included
+
+Usage:
+------
+rpm-demo <name>
+
+Documentation:
+--------------
+man rpm-demo
+DOCUMENTATION
+
+%clean
+rm -rf %{buildroot}
+
+%files
+%defattr(-,root,root,-)
+%{_bindir}/rpm-demo
+%{_mandir}/man1/rpm-demo.1*
+%doc %{_docdir}/%{name}
+
+%changelog
+* Tue Jan 01 2024 Your Name <your.email@example.com> - 1.0-1
+- Initial package creation
+
+%pre
+echo "Pre-installation script running..."
+echo "Installing rpm-demo version %{version}-%{release}"
+
+%post
+echo "Post-installation script running..."
+echo "rpm-demo %{version}-%{release} successfully installed!"
+
+%preun
+echo "Pre-uninstall script running..."
+echo "Removing rpm-demo %{version}-%{release}"
+
+%postun
+echo "Post-uninstall script running..."
+echo "rpm-demo %{version}-%{release} successfully removed!"
+EOF
+
+# 7. В реальной системе мы бы собрали пакет так:
+# rpmbuild --define "_topdir $(pwd)/rpm-build" -bb rpm-build/SPECS/rpm-demo.spec
+
+# 8. Для демонстрации создаем имитацию RPM пакета
+echo "=== Создание RPM пакета (имитация) ==="
+mkdir -p rpm-package/RPMS/x86_64
+cat > rpm-package/RPMS/x86_64/rpm-demo-1.0-1.x86_64.rpm << 'EOF'
+This would be a real RPM package file
+containing the compiled program and all
+necessary metadata and scripts.
+EOF
+
+# 9. Создаем альтернативный способ для Debian/Ubuntu систем
+echo "=== Альтернативная демонстрация для DEB-систем ==="
+
+# Создаем DEB пакет аналогичный RPM
+mkdir -p rpm-demo-pkg/DEBIAN
+mkdir -p rpm-demo-pkg/usr/bin
+mkdir -p rpm-demo-pkg/usr/share/man/man1
+mkdir -p rpm-demo-pkg/usr/share/doc/rpm-demo
+
+cp rpm-demo rpm-demo-pkg/usr/bin/
+
+cat > rpm-demo-pkg/DEBIAN/control << 'EOF'
+Package: rpm-demo
+Version: 1.0-1
+Architecture: amd64
+Maintainer: Your Name <your.email@example.com>
+Depends: libc6 (>= 2.34)
+Section: utils
+Priority: optional
+Description: RPM-style demonstration package for DEB systems
+ This package demonstrates RPM-like packaging in DEB format.
+ It shows cross-packaging concepts and techniques.
+EOF
+
+# Создаем man страницу
+cat > rpm-demo-pkg/usr/share/man/man1/rpm-demo.1 << 'EOF'
+.TH RPM-DEMO 1 "2024-01-01" "1.0" "User Commands"
+.SH NAME
+rpm-demo \- demonstration package with RPM-style packaging
+.SH SYNOPSIS
+.B rpm-demo
+.I name
+.SH DESCRIPTION
+Demonstration package showing packaging concepts.
+.SH AUTHOR
+Your Name <your.email@example.com>
+EOF
+gzip -9 rpm-demo-pkg/usr/share/man/man1/rpm-demo.1
+
+# Собираем пакет
+dpkg-deb --build rpm-demo-pkg
+
+# 10. Демонстрируем установку и использование
+echo -e "\n=== Установка и тестирование ==="
+sudo dpkg -i rpm-demo-pkg.deb
+
+echo -e "\n=== Тестирование программы ==="
+rpm-demo "RPM Packaging"
+
+echo -e "\n=== Проверка установленных файлов ==="
+dpkg -L rpm-demo
+
+# 11. Показываем различия между пакетными системами
+echo -e "\n=== Сравнение пакетных систем ==="
+echo "DEB пакеты:"
+echo "  - Используют dpkg/APT"
+echo "  - Файлы: control, preinst, postinst, prerm, postrm"
+echo "  - Структура: ar архив с двумя tar архивами"
+echo ""
+echo "RPM пакеты:"
+echo "  - Используют rpm/yum/dnf" 
+echo "  - Файлы: .spec файл с секциями"
+echo "  - Структура: cpio архив с заголовком"
+echo ""
+echo "Общие концепции:"
+echo "  - Метаданные (имя, версия, зависимости)"
+echo "  - Скрипты установки/удаления"
+echo "  - Управление файлами"
+echo "  - Проверки зависимостей"
+
+# 12. Очистка
+sudo dpkg -r rpm-demo
+```
+
+### **Пример 3: Профессиональный Makefile для сборки и упаковки**
+
+**Цель:** Создать продвинутый Makefile для автоматизации сборки и упаковки.
+
+```bash
+# 1. Создаем многофайловый проект для демонстрации
+mkdir -p myproject/src
+mkdir -p myproject/include
+mkdir -p myproject/docs
+
+# 2. Создаем заголовочные файлы
+cat > myproject/include/utils.h << 'EOF'
+#ifndef UTILS_H
+#define UTILS_H
+
+void print_banner(void);
+int calculate_sum(int a, int b);
+void show_version(void);
+
+#endif
+EOF
+
+cat > myproject/include/config.h << 'EOF'
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define PACKAGE_NAME "MyProject"
+#define PACKAGE_VERSION "1.2.3"
+#define PACKAGE_BUGREPORT "bugs@example.com"
+
+#endif
+EOF
+
+# 3. Создаем исходные файлы
+cat > myproject/src/utils.c << 'EOF'
+#include <stdio.h>
+#include "utils.h"
+#include "config.h"
+
+void print_banner(void) {
+    printf("=== %s ===\n", PACKAGE_NAME);
+    printf("Version: %s\n", PACKAGE_VERSION);
+    printf("====================\n");
+}
+
+int calculate_sum(int a, int b) {
+    return a + b;
+}
+
+void show_version(void) {
+    printf("%s version %s\n", PACKAGE_NAME, PACKAGE_VERSION);
+    printf("Report bugs to: %s\n", PACKAGE_BUGREPORT);
+}
+EOF
+
+cat > myproject/src/main.c << 'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include "utils.h"
+#include "config.h"
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        print_banner();
+        printf("Usage: %s <command>\n", argv[0]);
+        printf("Commands: sum, version\n");
+        return 1;
+    }
+    
+    if (strcmp(argv[1], "sum") == 0) {
+        if (argc != 4) {
+            printf("Usage: %s sum <num1> <num2>\n", argv[0]);
+            return 1;
         }
-        
-        printf("Дочерний процесс: завершаю работу\n");
-        exit(42); // Завершаемся с кодом 42
+        int a = atoi(argv[2]);
+        int b = atoi(argv[3]);
+        printf("Sum: %d + %d = %d\n", a, b, calculate_sum(a, b));
+    }
+    else if (strcmp(argv[1], "version") == 0) {
+        show_version();
     }
     else {
-        // Код выполняется в родительском процессе
-        printf("Родительский процесс: создал дочерний процесс с PID=%d\n", pid);
-        
-        // Ждем завершения дочернего процесса
-        printf("Родительский процесс: жду завершения дочернего процесса...\n");
-        wait(&status);
-        
-        if (WIFEXITED(status)) {
-            printf("Родительский процесс: дочерний процесс завершился с кодом %d\n", 
-                   WEXITSTATUS(status));
-        }
-        else if (WIFSIGNALED(status)) {
-            printf("Родительский процесс: дочерний процесс убит сигналом %d\n", 
-                   WTERMSIG(status));
-        }
-        
-        printf("Родительский процесс: завершаю работу\n");
+        printf("Unknown command: %s\n", argv[1]);
+        return 1;
     }
     
     return 0;
 }
 EOF
 
-# 2. Компилируем и запускаем
-gcc process_demo.c -o process_demo
-./process_demo
+# 4. Создаем профессиональный Makefile
+cat > myproject/Makefile << 'EOF'
+# Professional Makefile for Project Build and Packaging
+# =====================================================
 
-# 3. Создаем более сложный пример с несколькими процессами
-cat > multiple_processes.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
+# Project Configuration
+PACKAGE_NAME = myproject
+PACKAGE_VERSION = 1.2.3
+PACKAGE_RELEASE = 1
+ARCHITECTURE = amd64
 
-void worker_process(int id) {
-    printf("Рабочий процесс %d (PID=%d) начал работу\n", id, getpid());
-    sleep(id * 2); // Имитируем разную продолжительность работы
-    printf("Рабочий процесс %d (PID=%d) завершил работу\n", id, getpid());
-    exit(id * 10);
-}
+# Compiler and Flags
+CC = gcc
+CFLAGS = -Wall -Wextra -Wpedantic -g -I./include
+LDFLAGS = 
+DEBUG_CFLAGS = -DDEBUG -O0
+RELEASE_CFLAGS = -O2 -DNDEBUG
 
-int main() {
-    printf("=== Множественные процессы ===\n\n");
-    printf("Главный процесс: PID=%d\n", getpid());
-    
-    const int NUM_WORKERS = 3;
-    pid_t pids[NUM_WORKERS];
-    
-    // Создаем несколько дочерних процессов
-    for (int i = 0; i < NUM_WORKERS; i++) {
-        pids[i] = fork();
-        
-        if (pids[i] == 0) {
-            // Дочерний процесс
-            worker_process(i + 1);
-            // Функция worker_process вызывает exit(), так что сюда мы не попадем
-        }
-        else if (pids[i] == -1) {
-            perror("Ошибка при создании процесса");
-            exit(1);
-        }
-        else {
-            printf("Создан рабочий процесс %d с PID=%d\n", i + 1, pids[i]);
-        }
-    }
-    
-    // Родительский процесс ждет завершения всех дочерних
-    printf("\nГлавный процесс: жду завершения всех рабочих процессов...\n");
-    
-    for (int i = 0; i < NUM_WORKERS; i++) {
-        int status;
-        pid_t finished_pid = wait(&status);
-        
-        // Находим, какой это был рабочий процесс
-        int worker_id = -1;
-        for (int j = 0; j < NUM_WORKERS; j++) {
-            if (pids[j] == finished_pid) {
-                worker_id = j + 1;
-                break;
-            }
-        }
-        
-        if (WIFEXITED(status)) {
-            printf("Рабочий процесс %d (PID=%d) завершился с кодом %d\n", 
-                   worker_id, finished_pid, WEXITSTATUS(status));
-        }
-    }
-    
-    printf("Главный процесс: все рабочие процессы завершены\n");
-    return 0;
-}
+# Directories
+SRCDIR = src
+INCDIR = include
+BUILDDIR = build
+BINDIR = $(BUILDDIR)/bin
+OBJDIR = $(BUILDDIR)/obj
+PKGDIR = $(BUILDDIR)/pkg
+DOCSDIR = docs
+
+# Targets
+TARGET = $(BINDIR)/$(PACKAGE_NAME)
+SOURCES = $(wildcard $(SRCDIR)/*.c)
+OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+
+# Default target
+all: debug
+
+# Debug build
+debug: CFLAGS += $(DEBUG_CFLAGS)
+debug: $(TARGET)
+
+# Release build  
+release: CFLAGS += $(RELEASE_CFLAGS)
+release: $(TARGET)
+
+# Create target executable
+$(TARGET): $(OBJECTS) | $(BINDIR)
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
+	@echo "Built target: $@"
+
+# Compile source files
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Create directories
+$(BINDIR):
+	@mkdir -p $(BINDIR)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(PKGDIR):
+	@mkdir -p $(PKGDIR)
+
+# Installation
+PREFIX = /usr/local
+BIN_INSTALL_DIR = $(DESTDIR)$(PREFIX)/bin
+DOC_INSTALL_DIR = $(DESTDIR)$(PREFIX)/share/doc/$(PACKAGE_NAME)
+MAN_INSTALL_DIR = $(DESTDIR)$(PREFIX)/share/man/man1
+
+install: release
+	@echo "Installing $(PACKAGE_NAME) to $(PREFIX)"
+	install -d $(BIN_INSTALL_DIR)
+	install -m 755 $(TARGET) $(BIN_INSTALL_DIR)/
+	install -d $(DOC_INSTALL_DIR)
+	install -m 644 $(DOCSDIR)/* $(DOC_INSTALL_DIR)/ 2>/dev/null || true
+	@echo "Installation completed"
+
+uninstall:
+	@echo "Uninstalling $(PACKAGE_NAME)"
+	rm -f $(BIN_INSTALL_DIR)/$(PACKAGE_NAME)
+	rm -rf $(DOC_INSTALL_DIR)
+	@echo "Uninstallation completed"
+
+# Package creation
+DEB_PKG_DIR = $(PKGDIR)/$(PACKAGE_NAME)_$(PACKAGE_VERSION)-$(PACKAGE_RELEASE)_$(ARCHITECTURE)
+
+deb: release
+	@echo "Building DEB package..."
+	@mkdir -p $(DEB_PKG_DIR)/DEBIAN
+	@mkdir -p $(DEB_PKG_DIR)/usr/bin
+	@mkdir -p $(DEB_PKG_DIR)/usr/share/doc/$(PACKAGE_NAME)
+	
+	# Copy binary
+	cp $(TARGET) $(DEB_PKG_DIR)/usr/bin/
+	
+	# Create control file
+	@cat > $(DEB_PKG_DIR)/DEBIAN/control << CONTROL_EOF
+Package: $(PACKAGE_NAME)
+Version: $(PACKAGE_VERSION)-$(PACKAGE_RELEASE)
+Section: utils
+Priority: optional
+Architecture: $(ARCHITECTURE)
+Depends: libc6 (>= 2.34)
+Maintainer: Package Maintainer <maintainer@example.com>
+Description: Professional example package built with Makefile
+ This package demonstrates professional build and packaging
+ techniques using Makefile automation.
+CONTROL_EOF
+	
+	# Create postinst script
+	@cat > $(DEB_PKG_DIR)/DEBIAN/postinst << SCRIPT_EOF
+#!/bin/bash
+echo "$(PACKAGE_NAME) version $(PACKAGE_VERSION) has been installed"
+SCRIPT_EOF
+	chmod 755 $(DEB_PKG_DIR)/DEBIAN/postinst
+	
+	# Build package
+	dpkg-deb --build $(DEB_PKG_DIR)
+	@echo "DEB package created: $(DEB_PKG_DIR).deb"
+
+# Testing
+test: debug
+	@echo "Running tests..."
+	$(TARGET) version
+	$(TARGET) sum 5 7
+	@echo "Tests completed"
+
+# Code quality
+check:
+	@echo "Running code quality checks..."
+	@echo "Checking for TODO comments..."
+	@grep -r "TODO" $(SRCDIR) $(INCDIR) || true
+	@echo "Code quality check completed"
+
+# Distribution package
+dist: clean deb
+	@echo "Creating distribution package..."
+	tar -czf $(PACKAGE_NAME)-$(PACKAGE_VERSION).tar.gz \
+		--transform 's,^,$(PACKAGE_NAME)-$(PACKAGE_VERSION)/,' \
+		$(SRCDIR) $(INCDIR) $(DOCSDIR) Makefile README.md
+	@echo "Distribution package created: $(PACKAGE_NAME)-$(PACKAGE_VERSION).tar.gz"
+
+# Cleanup
+clean:
+	@echo "Cleaning build files..."
+	rm -rf $(BUILDDIR)
+	rm -f $(PACKAGE_NAME)-*.tar.gz
+
+distclean: clean
+	@echo "Deep cleaning..."
+	rm -f *.deb
+
+# Help
+help:
+	@echo "Available targets:"
+	@echo "  all       - Build debug version (default)"
+	@echo "  debug     - Build with debug flags"
+	@echo "  release   - Build with optimization"
+	@echo "  install   - Install to system"
+	@echo "  uninstall - Remove from system"
+	@echo "  deb       - Create DEB package"
+	@echo "  test      - Run basic tests"
+	@echo "  check     - Code quality checks"
+	@echo "  dist      - Create distribution package"
+	@echo "  clean     - Remove build files"
+	@echo "  distclean - Remove all generated files"
+	@echo "  help      - Show this help"
+
+# PHONY targets
+.PHONY: all debug release install uninstall deb test check dist clean distclean help
+
+# Dependency information
+-include $(OBJECTS:.o=.d)
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+	@$(CC) -MM $(CFLAGS) $< > $(OBJDIR)/$*.d
+	@mv -f $(OBJDIR)/$*.d $(OBJDIR)/$*.d.tmp
+	@sed -e 's|.*:|$@:|' < $(OBJDIR)/$*.d.tmp > $(OBJDIR)/$*.d
+	@sed -e 's/.*://' -e 's/\\$$//' < $(OBJDIR)/$*.d.tmp | fmt -1 | \
+	  sed -e 's/^ *//' -e 's/$$/:/' >> $(OBJDIR)/$*.d
+	@rm -f $(OBJDIR)/$*.d.tmp
 EOF
 
-# 4. Компилируем и запускаем
-gcc multiple_processes.c -o multiple_processes
-./multiple_processes
+# 5. Создаем документацию
+cat > myproject/README.md << 'EOF'
+# MyProject
+
+Professional example project with automated build and packaging.
+
+## Building
+
+make          # Debug build
+make release  # Release build
+make deb      # Create DEB package
+
+## Installation
+
+make install
+
+## Packaging
+
+The Makefile supports creating DEB packages and distribution tarballs.
+EOF
+
+cat > myproject/docs/API.md << 'EOF'
+# API Documentation
+
+## Functions
+
+### print_banner()
+Prints the application banner.
+
+### calculate_sum(a, b)
+Calculates the sum of two numbers.
+
+### show_version()
+Displays version information.
+EOF
+
+# 6. Демонстрируем использование Makefile
+cd myproject
+
+echo "=== Демонстрация профессионального Makefile ==="
+
+echo -e "\n1. Сборка debug версии:"
+make debug
+
+echo -e "\n2. Запуск тестов:"
+make test
+
+echo -e "\n3. Проверка качества кода:"
+make check
+
+echo -e "\n4. Сборка release версии:"
+make release
+
+echo -e "\n5. Создание DEB пакета:"
+make deb
+
+echo -e "\n6. Просмотр помощи:"
+make help
+
+echo -e "\n7. Создание дистрибутивного пакета:"
+make dist
+
+echo -e "\n8. Очистка:"
+make clean
+
+cd ..
+
+# 7. Показываем созданные артефакты
+echo -e "\n=== Созданные артефакты ==="
+find myproject -name "*.deb" -o -name "*.tar.gz" | head -10
 ```
 
-### **Пример 3: Межпроцессное взаимодействие через каналы (pipes)**
-
-**Цель:** Научиться использовать каналы для обмена данными между процессами.
+### **Пример 4: Пакет с системным сервисом**
 
 ```bash
-# 1. Создаем программу с использованием каналов
-cat > pipe_demo.c << 'EOF'
+# Создаем демон-программу
+cat > myservice.c << 'EOF'
 #include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/wait.h>
-
-#define BUFFER_SIZE 1024
-
-int main() {
-    int pipefd[2]; // pipefd[0] - чтение, pipefd[1] - запись
-    pid_t pid;
-    char buffer[BUFFER_SIZE];
-    ssize_t bytes;
-    
-    printf("=== Межпроцессное взаимодействие через каналы ===\n\n");
-    
-    // Создаем канал
-    if (pipe(pipefd) == -1) {
-        perror("Ошибка при создании канала");
-        exit(1);
-    }
-    
-    printf("Канал создан: чтение=%d, запись=%d\n", pipefd[0], pipefd[1]);
-    
-    // Создаем дочерний процесс
-    pid = fork();
-    
-    if (pid == -1) {
-        perror("Ошибка при создании процесса");
-        exit(1);
-    }
-    
-    if (pid == 0) {
-        // Дочерний процесс - читает из канала
-        close(pipefd[1]); // Закрываем конец для записи
-        
-        printf("Дочерний процесс (PID=%d): жду данные из канала...\n", getpid());
-        
-        bytes = read(pipefd[0], buffer, BUFFER_SIZE - 1);
-        if (bytes == -1) {
-            perror("Ошибка при чтении из канала");
-            exit(1);
-        }
-        
-        buffer[bytes] = '\0';
-        printf("Дочерний процесс: получил %zd байт: '%s'\n", bytes, buffer);
-        
-        // Отправляем ответ обратно (для этого нужен был бы второй канал)
-        printf("Дочерний процесс: завершаю работу\n");
-        close(pipefd[0]);
-        exit(0);
-        
-    } else {
-        // Родительский процесс - пишет в канал
-        close(pipefd[0]); // Закрываем конец для чтения
-        
-        sleep(1); // Даем дочернему процессу время подготовиться
-        
-        char* message = "Привет из родительского процесса!";
-        printf("Родительский процесс (PID=%d): отправляю сообщение...\n", getpid());
-        
-        bytes = write(pipefd[1], message, strlen(message));
-        if (bytes == -1) {
-            perror("Ошибка при записи в канал");
-            exit(1);
-        }
-        
-        printf("Родительский процесс: отправил %zd байт\n", bytes);
-        close(pipefd[1]);
-        
-        // Ждем завершения дочернего процесса
-        wait(NULL);
-        printf("Родительский процесс: дочерний процесс завершился\n");
-    }
-    
-    return 0;
-}
-EOF
-
-# 2. Компилируем и запускаем
-gcc pipe_demo.c -o pipe_demo
-./pipe_demo
-
-# 3. Создаем более сложный пример с двунаправленной связью
-cat > bidirectional_pipe.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/wait.h>
-
-#define BUFFER_SIZE 1024
-
-int main() {
-    int parent_to_child[2];  // Канал от родителя к ребенку
-    int child_to_parent[2];  // Канал от ребенка к родителю
-    pid_t pid;
-    char buffer[BUFFER_SIZE];
-    
-    printf("=== Двунаправленная связь между процессами ===\n\n");
-    
-    // Создаем оба канала
-    if (pipe(parent_to_child) == -1 || pipe(child_to_parent) == -1) {
-        perror("Ошибка при создании каналов");
-        exit(1);
-    }
-    
-    pid = fork();
-    
-    if (pid == -1) {
-        perror("Ошибка при создании процесса");
-        exit(1);
-    }
-    
-    if (pid == 0) {
-        // Дочерний процесс
-        close(parent_to_child[1]); // Закрываем запись в первый канал
-        close(child_to_parent[0]); // Закрываем чтение из второго канала
-        
-        // Читаем сообщение от родителя
-        ssize_t bytes = read(parent_to_child[0], buffer, BUFFER_SIZE - 1);
-        buffer[bytes] = '\0';
-        printf("Дочерний процесс: получил - '%s'\n", buffer);
-        
-        // Отправляем ответ
-        char* response = "Привет, родитель! Я получил твое сообщение.";
-        write(child_to_parent[1], response, strlen(response));
-        printf("Дочерний процесс: отправил ответ\n");
-        
-        close(parent_to_child[0]);
-        close(child_to_parent[1]);
-        exit(0);
-        
-    } else {
-        // Родительский процесс
-        close(parent_to_child[0]); // Закрываем чтение из первого канала
-        close(child_to_parent[1]); // Закрываем запись во второй канал
-        
-        // Отправляем сообщение ребенку
-        char* message = "Привет, дочерний процесс! Как дела?";
-        printf("Родительский процесс: отправляю - '%s'\n", message);
-        write(parent_to_child[1], message, strlen(message));
-        
-        // Читаем ответ
-        ssize_t bytes = read(child_to_parent[0], buffer, BUFFER_SIZE - 1);
-        buffer[bytes] = '\0';
-        printf("Родительский процесс: получил ответ - '%s'\n", buffer);
-        
-        close(parent_to_child[1]);
-        close(child_to_parent[0]);
-        wait(NULL);
-        printf("Родительский процесс: обмен завершен\n");
-    }
-    
-    return 0;
-}
-EOF
-
-# 4. Компилируем и запускаем
-gcc bidirectional_pipe.c -o bidirectional_pipe
-./bidirectional_pipe
-```
-
-### **Пример 4: Запуск внешних программ с exec()**
-
-**Цель:** Научиться заменять программу процесса на другую с помощью exec.
-
-```bash
-# 1. Создаем программу для демонстрации exec
-cat > exec_demo.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <string.h>
-
-int main() {
-    pid_t pid;
-    
-    printf("=== Запуск внешних программ с exec() ===\n\n");
-    printf("Родительский процесс: PID=%d\n", getpid());
-    
-    pid = fork();
-    
-    if (pid == -1) {
-        perror("Ошибка при создании процесса");
-        exit(1);
-    }
-    
-    if (pid == 0) {
-        // Дочерний процесс
-        printf("Дочерний процесс: PID=%d\n", getpid());
-        printf("Дочерний процесс: запускаю программу 'ls'...\n\n");
-        
-        // Заменяем программу дочернего процесса на 'ls'
-        execl("/bin/ls", "ls", "-la", NULL);
-        
-        // Если execl вернул управление, значит произошла ошибка
-        perror("Ошибка при выполнении execl");
-        exit(1);
-        
-    } else {
-        // Родительский процесс
-        wait(NULL);
-        printf("\nРодительский процесс: дочерний процесс завершился\n");
-    }
-    
-    // Демонстрация разных вариантов exec
-    printf("\n--- Демонстрация разных функций exec ---\n");
-    
-    pid = fork();
-    if (pid == 0) {
-        printf("\nДочерний процесс: запускаю 'ps' с аргументами...\n");
-        
-        // Используем execvp с массивом аргументов
-        char* args[] = {"ps", "aux", NULL};
-        execvp("ps", args);
-        
-        perror("Ошибка при выполнении execvp");
-        exit(1);
-    } else {
-        wait(NULL);
-    }
-    
-    pid = fork();
-    if (pid == 0) {
-        printf("\nДочерний процесс: запускаю 'pwd'...\n");
-        
-        // Используем execlp (ищет в PATH)
-        execlp("pwd", "pwd", NULL);
-        
-        perror("Ошибка при выполнении execlp");
-        exit(1);
-    } else {
-        wait(NULL);
-    }
-    
-    printf("\nРодительский процесс: все демонстрации завершены\n");
-    return 0;
-}
-EOF
-
-# 2. Компилируем и запускаем
-gcc exec_demo.c -o exec_demo
-./exec_demo
-
-# 3. Создаем пример с комбинацией fork + exec + pipe
-cat > fork_exec_pipe.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <string.h>
-
-#define BUFFER_SIZE 1024
-
-int main() {
-    int pipefd[2];
-    pid_t pid;
-    char buffer[BUFFER_SIZE];
-    ssize_t bytes;
-    
-    printf("=== Комбинация: fork + exec + pipe ===\n\n");
-    
-    // Создаем канал
-    if (pipe(pipefd) == -1) {
-        perror("Ошибка при создании канала");
-        exit(1);
-    }
-    
-    pid = fork();
-    
-    if (pid == 0) {
-        // Дочерний процесс - будет выполнять 'ls'
-        close(pipefd[0]); // Закрываем чтение
-        
-        // Перенаправляем stdout в канал
-        dup2(pipefd[1], STDOUT_FILENO);
-        close(pipefd[1]);
-        
-        // Запускаем ls
-        execlp("ls", "ls", "-la", NULL);
-        perror("Ошибка при выполнении execlp");
-        exit(1);
-        
-    } else {
-        // Родительский процесс
-        close(pipefd[1]); // Закрываем запись
-        
-        printf("Родительский процесс: читаю вывод команды 'ls -la':\n");
-        printf("============================================\n");
-        
-        // Читаем вывод команды ls из канала
-        while ((bytes = read(pipefd[0], buffer, BUFFER_SIZE - 1)) > 0) {
-            buffer[bytes] = '\0';
-            printf("%s", buffer);
-        }
-        
-        printf("============================================\n");
-        
-        close(pipefd[0]);
-        wait(NULL);
-        printf("Родительский процесс: завершено\n");
-    }
-    
-    return 0;
-}
-EOF
-
-# 4. Компилируем и запускаем
-gcc fork_exec_pipe.c -o fork_exec_pipe
-./fork_exec_pipe
-```
-
-### **Пример 5: Работа с сигналами и обработка прерываний**
-
-**Цель:** Научиться обрабатывать сигналы и корректно завершать программы.
-
-```bash
-# 1. Создаем программу для демонстрации работы с сигналами
-cat > signal_demo.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
-#include <string.h>
 
-volatile sig_atomic_t keep_running = 1;
-volatile sig_atomic_t signal_count = 0;
+volatile int running = 1;
 
-// Обработчик для SIGINT (Ctrl+C)
-void handle_sigint(int sig) {
-    signal_count++;
-    printf("\nПолучен сигнал SIGINT (%d). Сигналов получено: %d\n", 
-           sig, signal_count);
-    printf("Нажмите Ctrl+C еще раз для быстрого завершения или подождите 5 секунд\n");
-    
-    if (signal_count >= 2) {
-        printf("Экстренное завершение!\n");
-        exit(1);
-    }
-    
-    // Устанавливаем таймер для сброса счетчика
-    alarm(5);
-}
-
-// Обработчик для SIGALRM
-void handle_sigalrm(int sig) {
-    printf("Таймер истек, счетчик сигналов сброшен\n");
-    signal_count = 0;
-}
-
-// Обработчик для SIGTERM
-void handle_sigterm(int sig) {
-    printf("\nПолучен сигнал SIGTERM (%d). Корректно завершаю работу...\n", sig);
-    keep_running = 0;
-}
-
-// Обработчик для SIGUSR1 (пользовательский сигнал)
-void handle_sigusr1(int sig) {
-    printf("\nПолучен пользовательский сигнал SIGUSR1 (%d)\n", sig);
-    printf("Текущее время: ");
-    fflush(stdout);
-    system("date");
+void handle_signal(int sig) {
+    running = 0;
 }
 
 int main() {
-    printf("=== Демонстрация работы с сигналами ===\n\n");
-    printf("Процесс PID=%d\n", getpid());
-    printf("Используемые сигналы:\n");
-    printf("  Ctrl+C (SIGINT) - попробуйте нажать 1 или 2 раза\n");
-    printf("  SIGTERM - kill %d\n", getpid());
-    printf("  SIGUSR1 - kill -USR1 %d\n", getpid());
-    printf("  SIGALRM - внутренний таймер\n\n");
+    signal(SIGTERM, handle_signal);
     
-    // Регистрируем обработчики сигналов
-    signal(SIGINT, handle_sigint);
-    signal(SIGTERM, handle_sigterm);
-    signal(SIGUSR1, handle_sigusr1);
-    signal(SIGALRM, handle_sigalrm);
-    
-    printf("Программа работает. Отправьте сигналы как указано выше.\n");
-    printf("Для выхода можно также подождать 30 секунд.\n\n");
-    
-    int counter = 0;
-    while (keep_running && counter < 30) {
-        printf("Работаю... (%d/30 секунд)\r", counter);
-        fflush(stdout);
-        sleep(1);
-        counter++;
-    }
-    
-    if (keep_running) {
-        printf("\nЗавершение по таймауту\n");
-    }
-    
-    printf("Программа корректно завершена\n");
-    return 0;
-}
-EOF
-
-# 2. Компилируем и запускаем в фоне
-gcc signal_demo.c -o signal_demo
-./signal_demo &
-
-# 3. Запоминаем PID процесса
-SIGNAL_PID=$!
-echo "Запущен процесс с PID: $SIGNAL_PID"
-
-# 4. Тестируем отправку сигналов
-sleep 2
-echo -e "\n=== Тестируем SIGUSR1 ==="
-kill -USR1 $SIGNAL_PID
-
-sleep 2
-echo -e "\n=== Тестируем Ctrl+C (в другом терминале) ==="
-echo "Нажмите Ctrl+C в терминале где запущен signal_demo"
-
-sleep 5
-echo -e "\n=== Тестируем SIGTERM ==="
-kill -TERM $SIGNAL_PID
-
-# 5. Ждем завершения
-wait $SIGNAL_PID
-echo "Процесс завершен"
-
-# 6. Создаем демон-процесс
-cat > daemon_demo.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <time.h>
-
-volatile sig_atomic_t daemon_running = 1;
-
-void handle_shutdown(int sig) {
-    daemon_running = 0;
-}
-
-int main() {
-    printf("Запуск демона...\n");
-    
-    // 1. Создаем дочерний процесс
-    pid_t pid = fork();
-    
-    if (pid < 0) {
-        perror("Ошибка при fork");
-        exit(1);
-    }
-    
-    if (pid > 0) {
-        // Родительский процесс завершается
-        printf("Демон запущен с PID: %d\n", pid);
-        exit(0);
-    }
-    
-    // 2. Создаем новую сессию (отсоединяем от терминала)
-    if (setsid() < 0) {
-        perror("Ошибка при setsid");
-        exit(1);
-    }
-    
-    // 3. Устанавливаем обработчики сигналов
-    signal(SIGTERM, handle_shutdown);
-    signal(SIGINT, handle_shutdown);
-    
-    // 4. Закрываем стандартные дескрипторы
-    close(STDIN_FILENO);
-    close(STDOUT_FILENO);
-    close(STDERR_FILENO);
-    
-    // 5. Открываем log файл
-    int log_fd = open("/tmp/daemon.log", O_CREAT | O_WRONLY | O_APPEND, 0644);
-    if (log_fd < 0) {
-        exit(1);
-    }
-    
-    // 6. Демон работает
-    while (daemon_running) {
-        time_t now = time(NULL);
-        char* time_str = ctime(&now);
-        
-        // Пишем в log
-        dprintf(log_fd, "Демон работает: %s", time_str);
-        fsync(log_fd);
-        
+    while (running) {
+        printf("Service is running...\n");
         sleep(5);
     }
     
-    // 7. Корректное завершение
-    dprintf(log_fd, "Демон завершает работу\n");
-    close(log_fd);
-    
+    printf("Service stopped gracefully\n");
     return 0;
 }
 EOF
+gcc myservice.c -o myservice
 
-# 7. Компилируем и тестируем демона
-gcc daemon_demo.c -o daemon_demo
-echo -e "\n=== Запуск демона ==="
-./daemon_demo
+# Создаем systemd service файл
+cat > myservice.service << 'EOF'
+[Unit]
+Description=My Demo Service
+After=network.target
 
-# Даем демону поработать
-sleep 3
-echo -e "\n=== Проверяем log файл ==="
-cat /tmp/daemon.log
+[Service]
+Type=simple
+ExecStart=/usr/bin/myservice
+Restart=always
 
-# Завершаем демона
-DAEMON_PID=$(ps aux | grep daemon_demo | grep -v grep | awk '{print $2}')
-if [ ! -z "$DAEMON_PID" ]; then
-    echo "Завершаем демона с PID: $DAEMON_PID"
-    kill $DAEMON_PID
-fi
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Создаем пакет
+mkdir -p service-pkg/DEBIAN
+mkdir -p service-pkg/usr/bin
+mkdir -p service-pkg/etc/systemd/system
+
+cp myservice service-pkg/usr/bin/
+cp myservice.service service-pkg/etc/systemd/system/
+
+cat > service-pkg/DEBIAN/control << 'EOF'
+Package: myservice
+Version: 1.0-1
+Architecture: amd64
+Maintainer: SysAdmin <admin@example.com>
+Description: System service example
+ Demonstrates service packaging.
+EOF
+
+# Скрипт постустановки
+cat > service-pkg/DEBIAN/postinst << 'EOF'
+#!/bin/bash
+systemctl daemon-reload
+systemctl enable myservice.service
+echo "Service installed and enabled"
+EOF
+chmod +x service-pkg/DEBIAN/postinst
+
+# Скрипт предудаления
+cat > service-pkg/DEBIAN/prerm << 'EOF'
+#!/bin/bash
+systemctl stop myservice.service
+systemctl disable myservice.service
+echo "Service stopped and disabled"
+EOF
+chmod +x service-pkg/DEBIAN/prerm
+
+dpkg-deb --build service-pkg
+
+# Проверяем содержимое пакета
+dpkg --contents service-pkg.deb
+```
+
+### **Пример 5: Пакет с конфигурационными файлами**
+
+```bash
+# Создаем программу, читающую конфиг
+cat > config-app.c << 'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+
+int main() {
+    FILE *config = fopen("/etc/myapp/config.conf", "r");
+    if (config) {
+        char line[256];
+        printf("Configuration:\n");
+        while (fgets(line, sizeof(line), config)) {
+            printf("  %s", line);
+        }
+        fclose(config);
+    } else {
+        printf("Using default configuration\n");
+    }
+    return 0;
+}
+EOF
+gcc config-app.c -o config-app
+
+# Создаем конфигурационный файл
+mkdir -p etc/myapp
+cat > etc/myapp/config.conf << 'EOF'
+# MyApp Configuration
+server = localhost
+port = 8080
+timeout = 30
+EOF
+
+# Создаем пакет
+mkdir -p config-pkg/DEBIAN
+mkdir -p config-pkg/usr/bin
+mkdir -p config-pkg/etc/myapp
+
+cp config-app config-pkg/usr/bin/
+cp etc/myapp/config.conf config-pkg/etc/myapp/
+
+cat > config-pkg/DEBIAN/control << 'EOF'
+Package: config-app
+Version: 1.0-1
+Architecture: amd64
+Maintainer: Config Master <config@example.com>
+Description: Configuration example
+ Shows how to package config files.
+EOF
+
+# Помечаем конфиг файлы
+cat > config-pkg/DEBIAN/conffiles << 'EOF'
+/etc/myapp/config.conf
+EOF
+
+dpkg-deb --build config-pkg
+
+# Устанавливаем и проверяем
+sudo dpkg -i config-pkg.deb
+config-app
+
+# Показываем, что конфиг сохранился при обновлении
+sudo dpkg -r config-app
+sudo dpkg -i config-pkg.deb
+
+# Очистка
+sudo dpkg -r config-app
 ```
