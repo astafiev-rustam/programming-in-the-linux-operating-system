@@ -8,210 +8,81 @@
 |СЕМЕСТР|1 семестр, 2025/2026 уч. год|
 
 Ссылка на материал: <br>
-https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-4
+https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-6
 
-# **Лекция №5: Инструментарий разработчика: компиляция и отладка**
+# **Лекция №6: Создание и использование разделяемых библиотек**
 
 ## **Теоретическая вводная**
 
-**Компиляция в Linux: превращение кода в программу**
+**Разделяемые библиотеки: искусство совместного использования кода**
 
-Представьте, что вы написали письмо на английском языке, но ваш друг понимает только китайский. Компилятор — это профессиональный переводчик, который берет ваш код, написанный на языке, понятном человеку (C, C++, Rust), и превращает его в язык, который понимает процессор — машинный код. Но это не простой перевод слово за слово, а сложный многоэтапный процесс, где каждое преобразование подчиняется строгим правилам.
+Представьте, что вы живете в многоквартирном доме, где есть общие помещения — библиотека, спортзал, бассейн. Все жители могут пользоваться этими помещениями, не создавая их копии в каждой квартире. Именно так работают разделяемые (динамические) библиотеки в Linux. Это коллекции функций и данных, которые могут использоваться множеством программ одновременно, экономя память и дисковое пространство.
 
-В мире Linux компилятор GCC (GNU Compiler Collection) — это настоящий швейцарский нож для разработчиков. Он не просто компилирует код, а проводит его через целую фабрику преобразований: препроцессор подготавливает код, удаляя комментарии и раскрывая макросы; компилятор превращает его в ассемблер; ассемблер создает объектные файлы; линковщик соединяет все части в единую программу. Это как собрать автомобиль из тысяч деталей — каждая должна быть на своем месте и правильно соединена с другими.
+В отличие от статических библиотек, которые встраиваются в исполняемый файл на этапе компиляции, разделяемые библиотеки остаются отдельными файлами и загружаются в память только тогда, когда программа их запрашивает. Это создает мощную экосистему, где обновление библиотеки автоматически становится доступным для всех программ, которые ее используют — как если бы вы обновили оборудование в общем спортзале, и все жители сразу получили доступ к улучшениям.
 
-**Этапы компиляции: за кулисами волшебства**
+**Механизм работы: от компиляции до выполнения**
 
-Когда вы набираете `gcc main.c`, за этой простой командой скрывается четыре четких этапа. Препроцессор работает как умный текстовый редактор — он обрабатывает директивы, начинающиеся с решетки: подключает заголовочные файлы, раскрывает макросы, убирает комментарии. Результат его работы — чистый код, готовый к компиляции.
+Когда вы компилируете программу с использованием разделяемой библиотеки, компилятор не включает код библиотеки в исполняемый файл. Вместо этого он оставляет специальные метки — ссылки на функции из библиотеки. Эти метки говорят системе: "Когда программа будет запущена, найди вот эту библиотеку и подключи эти функции".
 
-Затем компилятор берет этот подготовленный код и превращает его в ассемблер — низкоуровневый язык, близкий к машинному, но еще понятный человеку. Ассемблер уже специфичен для каждой архитектуры процессора, вот почему программа, скомпилированная для Intel, не будет работать на ARM.
+Ключевой момент здесь — флаг `-fPIC` (Position Independent Code). Он заставляет компилятор генерировать код, который может работать независимо от того, в каком месте памяти он будет загружен. Это критически важно, потому что система не может гарантировать, что библиотека будет загружена по одному и тому же адресу в памяти для разных программ.
 
-Третий этап — ассемблирование. Ассемблер преобразует человеко-читаемый ассемблерный код в двоичный машинный код, создавая объектные файлы. Эти файлы содержат уже настоящие инструкции для процессора, но они еще не являются законченной программой — в них есть дыры, места для подключения внешних функций.
+**Динамический загрузчик: мост между программой и библиотекой**
 
-Финальный этап — линковка. Линковщик берет все объектные файлы и соединяет их вместе, разрешая ссылки на внешние функции из библиотек. Он создает исполняемый файл, который операционная система может загрузить в память и выполнить.
+Когда вы запускаете программу, в игру вступает динамический загрузчик (`ld.so`) — умный посредник, который знает, где искать нужные библиотеки. Он проверяет зависимости программы, находит соответствующие файлы библиотек в файловой системе и загружает их в память.
 
-**Библиотеки: коллективный разум программирования**
+Загрузчик следует четкому алгоритму поиска: сначала он проверяет пути, указанные в переменной окружения `LD_LIBRARY_PATH`, затем смотрит в кэше библиотек (/etc/ld.so.cache), и наконец проверяет стандартные системные директории (/lib, /usr/lib). Этот многоуровневый подход обеспечивает гибкость — вы можете временно переопределить путь к библиотеке для тестирования, не затрагивая системную конфигурацию.
 
-Библиотеки в Linux — это как набор стандартных деталей в конструкторе. Зачем каждый раз изобретать колесо, если можно взять готовое? Статические библиотеки (.a файлы) встраиваются прямо в вашу программу на этапе линковки — программа становится самодостаточной, но увеличивается в размере. Динамические библиотеки (.so файлы) остаются отдельными файлами и подгружаются в память при запуске программы — экономят место и память, но требуют, чтобы библиотека была доступна в системе.
+**Версионирование: эволюция без разрушения**
 
-**Отладка: искусство находить невидимое**
+В мире разделяемых библиотек версионирование — это не просто формальность, а необходимость для поддержания совместимости. Библиотеки используют систему версий в своих именах: `libname.so.1.2.3`, где первая цифра — major version (меняется при несовместимых изменениях), вторая — minor version (новый функционал с обратной совместимостью), третья — patch version (исправления ошибок).
 
-Отладка — это детективная работа, где вы ищите преступника (баг) по оставленным следам (симптомам). GDB (GNU Debugger) — ваш верный помощник в этом расследовании. Он позволяет заглянуть внутрь работающей программы, остановить ее в любой момент, посмотреть на значения переменных, проследить выполнение шаг за шагом.
+Система симлинков создает элегантную структуру: `libname.so` указывает на `libname.so.1`, который указывает на `libname.so.1.2.3`. Программы линкуются против `libname.so`, но загружают конкретную версию `libname.so.1.2.3`. Это позволяет иметь несколько версий библиотеки одновременно и гарантирует, что программы получат именно ту версию, с которой они были скомпилированы.
 
-Но отладка — это не только про поиск ошибок. Это способ глубоко понять, как работает ваша программа, как взаимодействуют ее части, как данные преобразуются в процессе выполнения. Хороший отладчик — это как рентгеновский аппарат для кода, позволяющий увидеть его внутреннюю структуру и поведение в реальном времени.
+**Отладка и диагностика: понимание зависимостей**
 
-**Флаги компиляции: настройка качества**
+Работа с разделяемыми библиотеками требует умения диагностировать проблемы. Утилита `ldd` показывает, от каких библиотек зависит программа и где система их найдет. `nm` позволяет заглянуть внутрь библиотеки и увидеть, какие символы (функции и переменные) она экспортирует. `objdump` предоставляет еще более детальную информацию о структуре библиотеки.
 
-Флаги компиляции — это не просто дополнительные опции, это тонкие регуляторы, которые позволяют настроить процесс сборки под ваши нужды. `-g` добавляет отладочную информацию, без которой GDB будет бесполезен. `-Wall` включает все предупреждения, заставляя компилятор быть более внимательным к потенциальным проблемам. `-O2` включает оптимизации, делая программу быстрее, но иногда усложняя отладку.
-
-Понимание этих флагов — это как умение правильно настроить музыкальный инструмент перед концертом. Неправильная настройка — и красивая мелодия превращается в какофонию.
-
-**Сборка проектов: от хаоса к порядку**
-
-Когда проект растет и состоит из десятков файлов, компилировать каждый вручную становится невозможно. На помощь приходят системы сборки. Make — классический инструмент, который использует Makefile для описания правил сборки. Он определяет зависимости между файлами и пересобирает только то, что изменилось, экономя время разработчика.
-
-Современные проекты часто используют более сложные системы вроде CMake или Autotools, но принцип остается тем же: автоматизировать рутинный процесс превращения исходного кода в готовую программу.
+Когда что-то идет не так — библиотека не находится или версия не совпадает — эти инструменты становятся вашими главными помощниками в решении проблемы. Они позволяют понять, какая именно библиотека требуется, какая версия установлена и почему система не может ее найти.
 
 ---
 
 ## **Практические примеры**
 
-### **Пример 1: Первая программа и базовые флаги компиляции**
+### **Пример 1: Создание и использование простой разделяемой библиотеки**
 
-**Цель:** Научиться компилировать простую программу и понимать основные флаги GCC.
-
-```bash
-# 1. Создадим простую программу на C
-cat > hello.c << 'EOF'
-#include <stdio.h>
-
-int main() {
-    printf("Hello, Compilation World!\n");
-    int x = 5;
-    int y = 10;
-    int sum = x + y;
-    printf("Sum: %d\n", sum);
-    return 0;
-}
-EOF
-
-# 2. Базовая компиляция
-gcc hello.c -o hello
-./hello
-
-# 3. Компиляция с отладочной информацией
-gcc -g hello.c -o hello_debug
-./hello_debug
-
-# 4. Компиляция со всеми предупреждениями
-gcc -Wall hello.c -o hello_wall
-./hello_wall
-
-# 5. Компиляция с оптимизацией
-gcc -O2 hello.c -o hello_optimized
-./hello_optimized
-
-# 6. Посмотрим разницу в размере файлов
-ls -la hello*
-
-# 7. Компиляция с дополнительной информацией для отладки
-gcc -g3 hello.c -o hello_debug_max
-
-# 8. Компиляция с сохранением промежуточных файлов
-gcc -save-temps hello.c -o hello_with_temps
-ls -la hello*
-```
-
-### **Пример 2: Многофайловый проект и создание объектных файлов**
-
-**Цель:** Научиться работать с проектами из нескольких файлов.
+**Цель:** Создать базовую разделяемую библиотеку и использовать ее в программе.
 
 ```bash
-# 1. Создадим заголовочный файл
-cat > math_operations.h << 'EOF'
-#ifndef MATH_OPERATIONS_H
-#define MATH_OPERATIONS_H
+# 1. Создаем заголовочный файл библиотеки
+cat > stringlib.h << 'EOF'
+#ifndef STRINGLIB_H
+#define STRINGLIB_H
 
-int add(int a, int b);
-int multiply(int a, int b);
-double divide(double a, double b);
-
-#endif
-EOF
-
-# 2. Создаем реализацию математических функций
-cat > math_operations.c << 'EOF'
-#include "math_operations.h"
-
-int add(int a, int b) {
-    return a + b;
-}
-
-int multiply(int a, int b) {
-    return a * b;
-}
-
-double divide(double a, double b) {
-    if (b == 0) {
-        return 0; // Простая обработка ошибки
-    }
-    return a / b;
-}
-EOF
-
-# 3. Создаем главный файл
-cat > main.c << 'EOF'
-#include <stdio.h>
-#include "math_operations.h"
-
-int main() {
-    int result_add = add(5, 3);
-    int result_mult = multiply(4, 7);
-    double result_div = divide(10.0, 2.0);
-    
-    printf("Addition: %d\n", result_add);
-    printf("Multiplication: %d\n", result_mult);
-    printf("Division: %.2f\n", result_div);
-    
-    return 0;
-}
-EOF
-
-# 4. Компилируем каждый файл в объектный файл отдельно
-gcc -c math_operations.c -o math_operations.o
-gcc -c main.c -o main.o
-
-# 5. Линкуем объектные файлы в исполняемый файл
-gcc main.o math_operations.o -o calculator
-
-# 6. Запускаем программу
-./calculator
-
-# 7. Альтернативный способ: компиляция всех файлов сразу
-gcc main.c math_operations.c -o calculator_direct
-./calculator_direct
-```
-
-### **Пример 3: Создание и использование статических библиотек**
-
-**Цель:** Научиться создавать и использовать статические библиотеки.
-
-```bash
-# 1. Создаем объектные файлы для библиотеки
-gcc -c math_operations.c -o math_operations.o
-
-# 2. Создаем статическую библиотеку
-ar rcs libmath.a math_operations.o
-
-# 3. Проверяем содержимое библиотеки
-ar t libmath.a
-nm libmath.a
-
-# 4. Компилируем главную программу с использованием библиотеки
-gcc main.c -L. -lmath -o calculator_static
-
-# 5. Запускаем программу
-./calculator_static
-
-# 6. Посмотрим, что библиотека встроена в исполняемый файл
-ldd calculator_static
-
-# 7. Создаем более сложную библиотеку с несколькими модулями
-cat > string_operations.h << 'EOF'
-#ifndef STRING_OPERATIONS_H
-#define STRING_OPERATIONS_H
-
+// Функция для переворота строки
 void reverse_string(char* str);
-int string_length(const char* str);
+
+// Функция для преобразования строки в верхний регистр
+void to_uppercase(char* str);
+
+// Функция для проверки, является ли строка палиндромом
+int is_palindrome(const char* str);
+
+// Функция для подсчета количества слов в строке
+int count_words(const char* str);
 
 #endif
 EOF
 
-cat > string_operations.c << 'EOF'
-#include "string_operations.h"
+# 2. Создаем реализацию библиотеки
+cat > stringlib.c << 'EOF'
+#include "stringlib.h"
+#include <ctype.h>
 #include <string.h>
+#include <stdio.h>
 
 void reverse_string(char* str) {
+    if (str == NULL) return;
+    
     int len = strlen(str);
     for (int i = 0; i < len / 2; i++) {
         char temp = str[i];
@@ -220,905 +91,726 @@ void reverse_string(char* str) {
     }
 }
 
-int string_length(const char* str) {
+void to_uppercase(char* str) {
+    if (str == NULL) return;
+    
+    for (int i = 0; str[i]; i++) {
+        str[i] = toupper(str[i]);
+    }
+}
+
+int is_palindrome(const char* str) {
+    if (str == NULL) return 0;
+    
+    int len = strlen(str);
+    for (int i = 0; i < len / 2; i++) {
+        if (str[i] != str[len - i - 1]) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int count_words(const char* str) {
+    if (str == NULL) return 0;
+    
     int count = 0;
-    while (str[count] != '\0') {
-        count++;
+    int in_word = 0;
+    
+    for (int i = 0; str[i]; i++) {
+        if (isspace(str[i])) {
+            in_word = 0;
+        } else if (!in_word) {
+            in_word = 1;
+            count++;
+        }
     }
     return count;
 }
 EOF
 
-# 8. Создаем объектные файлы и добавляем их в библиотеку
-gcc -c string_operations.c -o string_operations.o
-ar rcs libutils.a math_operations.o string_operations.o
+# 3. Компилируем с позиционно-независимым кодом (обязательно для shared libraries)
+gcc -c -fPIC stringlib.c -o stringlib.o
 
-# 9. Используем объединенную библиотеку
-gcc main.c -L. -lutils -o calculator_with_utils
-```
+# 4. Создаем разделяемую библиотеку
+gcc -shared -o libstringlib.so stringlib.o
 
-### **Пример 4: Базовое использование GDB для отладки**
-
-**Цель:** Научиться основам работы с отладчиком GDB.
-
-```bash
-# 1. Создаем программу с преднамеренной ошибкой для отладки
-cat > debug_me.c << 'EOF'
+# 5. Создаем программу, которая использует нашу библиотеку
+cat > main.c << 'EOF'
 #include <stdio.h>
 #include <stdlib.h>
-
-int calculate_factorial(int n) {
-    if (n <= 1) {
-        return 1;
-    }
-    return n * calculate_factorial(n - 1);
-}
+#include "stringlib.h"
 
 int main() {
-    int number = 5;
-    int result = calculate_factorial(number);
-    printf("Factorial of %d is %d\n", number, result);
+    char text[100];
     
-    // Преднамеренная ошибка - разыменование NULL указателя
-    int* ptr = NULL;
-    *ptr = 42;  // Это вызовет segmentation fault
+    printf("Введите строку: ");
+    fgets(text, sizeof(text), stdin);
+    
+    // Убираем символ новой строки
+    text[strcspn(text, "\n")] = 0;
+    
+    printf("Исходная строка: %s\n", text);
+    
+    // Используем функции из нашей библиотеки
+    char reversed[100];
+    strcpy(reversed, text);
+    reverse_string(reversed);
+    printf("Перевернутая: %s\n", reversed);
+    
+    char upper[100];
+    strcpy(upper, text);
+    to_uppercase(upper);
+    printf("В верхнем регистре: %s\n", upper);
+    
+    printf("Палиндром: %s\n", is_palindrome(text) ? "да" : "нет");
+    printf("Количество слов: %d\n", count_words(text));
     
     return 0;
 }
 EOF
 
-# 2. Компилируем с отладочной информацией
-gcc -g debug_me.c -o debug_me
+# 6. Компилируем программу, линкуясь с нашей библиотекой
+gcc main.c -L. -lstringlib -o stringdemo
 
-# 3. Запускаем программу под GDB
-gdb ./debug_me
+# 7. Пытаемся запустить (пока не получится - библиотека не найдена)
+./stringdemo || echo "Библиотека не найдена!"
 
-# Внутри GDB выполняем:
-# run                    - запускаем программу
-# backtrace              - смотрим стек вызовов при падении
-# quit                   - выходим из GDB
+# 8. Смотрим зависимости программы
+ldd stringdemo
 
-# 4. Теперь найдем ошибку с помощью отладки
-gdb ./debug_me
+# 9. Временно добавляем текущую директорию в путь поиска библиотек
+export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
 
-# Команды для выполнения внутри GDB:
-# break main             - устанавливаем точку останова на main
-# run                    - запускаем программу
-# next                   - выполняем следующую строку
-# print number           - печатаем значение переменной
-# break calculate_factorial - точка останова на функции
-# continue               - продолжаем выполнение до следующей точки останова
-# step                   - заходим внутрь функции
-# where                  - где мы находимся в коде
+# 10. Теперь программа должна работать
+./stringdemo
 ```
 
-### **Пример 5: Продвинутая отладка с GDB**
+### **Пример 2: Установка библиотеки в систему и управление кэшем**
 
-**Цель:** Освоить продвинутые техники отладки в GDB.
-
-```bash
-# 1. Создаем программу для сложной отладки
-cat > advanced_debug.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-
-int global_counter = 0;
-
-void process_data(int* data, int size) {
-    for (int i = 0; i <= size; i++) {  // Ошибка: выход за границы массива
-        data[i] = i * 2;
-        global_counter++;
-    }
-}
-
-void print_array(int* data, int size) {
-    printf("Array: ");
-    for (int i = 0; i < size; i++) {
-        printf("%d ", data[i]);
-    }
-    printf("\n");
-}
-
-int main() {
-    int data[5];
-    
-    printf("Global counter: %d\n", global_counter);
-    process_data(data, 5);
-    printf("Global counter after processing: %d\n", global_counter);
-    print_array(data, 5);
-    
-    return 0;
-}
-EOF
-
-# 2. Компилируем с отладочной информацией
-gcc -g advanced_debug.c -o advanced_debug
-
-# 3. Запускаем отладку
-gdb ./advanced_debug
-
-# Команды для выполнения в GDB:
-# list                    - просмотр кода
-# break process_data      - точка останова на функции
-# run                     - запуск программы
-# watch global_counter    - отслеживание изменения переменной
-# continue                - продолжение выполнения
-# print data              - просмотр массива
-# x/10w data              - просмотр памяти массива
-# info breakpoints        - информация о точках останова
-# delete breakpoint 1     - удаление точки останова 1
-# set var global_counter=0 - изменение переменной во время выполнения
-```
-
-### **Пример 6: Работа с препроцессором**
-
-**Цель:** Понять работу препроцессора и научиться использовать макросы.
+**Цель:** Научиться устанавливать библиотеку в системные директории и управлять кэшем библиотек.
 
 ```bash
-# 1. Создаем программу с макросами и условной компиляцией
-cat > preprocessor_demo.c << 'EOF'
-#include <stdio.h>
+# 1. Создаем более сложную библиотеку с математическими функциями
+cat > mathlib.h << 'EOF'
+#ifndef MATHLIB_H
+#define MATHLIB_H
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define SQUARE(x) ((x) * (x))
-#define DEBUG 1
+// Базовые математические операции
+double add(double a, double b);
+double subtract(double a, double b);
+double multiply(double a, double b);
+double divide(double a, double b);
 
-#ifdef DEBUG
-    #define DBG_PRINT(x) printf("DEBUG: %s = %d\n", #x, x)
-#else
-    #define DBG_PRINT(x)
-#endif
+// Статистические функции
+double calculate_mean(const double* data, int count);
+double calculate_stddev(const double* data, int count);
 
-int main() {
-    int x = 5, y = 10;
-    
-    printf("Maximum: %d\n", MAX(x, y));
-    printf("Square of %d: %d\n", x, SQUARE(x));
-    
-    DBG_PRINT(x);
-    DBG_PRINT(y);
-    
-    // Демонстрация потенциальной проблемы с макросами
-    printf("Problematic macro: %d\n", SQUARE(x + 1)); // Ожидается 36, но будет 11
-    
-    return 0;
-}
-EOF
-
-# 2. Компилируем и смотрим результат препроцессора
-gcc -E preprocessor_demo.c -o preprocessor_demo.i
-head -50 preprocessor_demo.i
-
-# 3. Компилируем обычным способом
-gcc preprocessor_demo.c -o preprocessor_demo
-./preprocessor_demo
-
-# 4. Компилируем без DEBUG определения
-gcc -DDEBUG=0 preprocessor_demo.c -o preprocessor_demo_no_debug
-./preprocessor_demo_no_debug
-
-# 5. Создаем заголовочный файл с защитой от повторного включения
-cat > config.h << 'EOF'
-#ifndef CONFIG_H
-#define CONFIG_H
-
-#define VERSION "1.0.0"
-#define MAX_BUFFER_SIZE 1024
+// Утилиты
+void print_statistics(const double* data, int count);
 
 #endif
 EOF
 
-# 6. Проверяем работу защиты включения
-cat > include_test.c << 'EOF'
-#include "config.h"
-#include "config.h"  // Преднамеренное двойное включение
+cat > mathlib.c << 'EOF'
+#include "mathlib.h"
+#include <stdio.h>
+#include <math.h>
+
+double add(double a, double b) {
+    return a + b;
+}
+
+double subtract(double a, double b) {
+    return a - b;
+}
+
+double multiply(double a, double b) {
+    return a * b;
+}
+
+double divide(double a, double b) {
+    if (b == 0.0) {
+        fprintf(stderr, "Ошибка: деление на ноль!\n");
+        return 0.0;
+    }
+    return a / b;
+}
+
+double calculate_mean(const double* data, int count) {
+    if (data == NULL || count <= 0) return 0.0;
+    
+    double sum = 0.0;
+    for (int i = 0; i < count; i++) {
+        sum += data[i];
+    }
+    return sum / count;
+}
+
+double calculate_stddev(const double* data, int count) {
+    if (data == NULL || count <= 1) return 0.0;
+    
+    double mean = calculate_mean(data, count);
+    double sum_sq = 0.0;
+    
+    for (int i = 0; i < count; i++) {
+        double diff = data[i] - mean;
+        sum_sq += diff * diff;
+    }
+    
+    return sqrt(sum_sq / (count - 1));
+}
+
+void print_statistics(const double* data, int count) {
+    if (data == NULL || count <= 0) {
+        printf("Нет данных для анализа\n");
+        return;
+    }
+    
+    double mean = calculate_mean(data, count);
+    double stddev = calculate_stddev(data, count);
+    
+    printf("Статистика:\n");
+    printf("  Количество элементов: %d\n", count);
+    printf("  Среднее значение: %.2f\n", mean);
+    printf("  Стандартное отклонение: %.2f\n", stddev);
+    
+    // Находим минимум и максимум
+    double min = data[0];
+    double max = data[0];
+    for (int i = 1; i < count; i++) {
+        if (data[i] < min) min = data[i];
+        if (data[i] > max) max = data[i];
+    }
+    printf("  Минимум: %.2f\n", min);
+    printf("  Максимум: %.2f\n", max);
+}
+EOF
+
+# 2. Компилируем и создаем библиотеку с версией
+gcc -c -fPIC mathlib.c -o mathlib.o
+gcc -shared -Wl,-soname,libmathlib.so.1 -o libmathlib.so.1.0.0 mathlib.o -lm
+
+# 3. Создаем симлинки для совместимости
+ln -sf libmathlib.so.1.0.0 libmathlib.so.1
+ln -sf libmathlib.so.1 libmathlib.so
+
+# 4. Проверяем созданные файлы
+ls -la libmathlib.so*
+
+# 5. Смотрим информацию о библиотеке
+objdump -p libmathlib.so.1.0.0 | grep SONAME
+
+# 6. Устанавливаем библиотеку в систему
+sudo mkdir -p /usr/local/include /usr/local/lib
+sudo cp mathlib.h /usr/local/include/
+sudo cp libmathlib.so.1.0.0 /usr/local/lib/
+sudo cp -P libmathlib.so.1 /usr/local/lib/
+sudo cp -P libmathlib.so /usr/local/lib/
+
+# 7. Обновляем кэш библиотек
+sudo ldconfig
+
+# 8. Проверяем, что библиотека добавлена в кэш
+ldconfig -p | grep mathlib
+
+# 9. Создаем тестовую программу
+cat > mathtest.c << 'EOF'
+#include <stdio.h>
+#include "mathlib.h"
 
 int main() {
-    printf("Version: %s\n", VERSION);
+    double numbers[] = {1.5, 2.8, 3.2, 4.7, 5.1};
+    int count = sizeof(numbers) / sizeof(numbers[0]);
+    
+    printf("Математическая библиотека v1.0\n\n");
+    
+    // Базовые операции
+    printf("Базовые операции:\n");
+    printf("  5.2 + 3.1 = %.2f\n", add(5.2, 3.1));
+    printf("  7.8 - 2.3 = %.2f\n", subtract(7.8, 2.3));
+    printf("  2.5 * 4.0 = %.2f\n", multiply(2.5, 4.0));
+    printf("  9.0 / 2.0 = %.2f\n\n", divide(9.0, 2.0));
+    
+    // Статистика
+    printf("Анализ данных:\n");
+    print_statistics(numbers, count);
+    
     return 0;
 }
 EOF
 
-gcc include_test.c -o include_test
-./include_test
+# 10. Компилируем программу (теперь библиотека находится в стандартном пути)
+gcc mathtest.c -lmathlib -o mathtest
+
+# 11. Запускаем программу (работает без LD_LIBRARY_PATH!)
+./mathtest
 ```
 
-### **Пример 7: Оптимизации компилятора**
+### **Пример 3: Продвинутое версионирование и обратная совместимость**
 
-**Цель:** Изучить влияние различных уровней оптимизации.
+**Цель:** Создать несколько версий библиотеки и обеспечить обратную совместимость.
 
 ```bash
-# 1. Создаем программу для тестирования оптимизаций
-cat > optimization_test.c << 'EOF'
-#include <stdio.h>
-#include <time.h>
+# 1. Создаем первую версию библиотеки (v1.0)
+cat > configlib_v1.h << 'EOF'
+#ifndef CONFIGLIB_V1_H
+#define CONFIGLIB_V1_H
 
-int expensive_calculation(int n) {
-    int result = 0;
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            result += i * j;
+// Конфигурационная библиотека v1.0
+typedef struct {
+    char name[50];
+    int timeout;
+    int max_connections;
+} Config_v1;
+
+void config_init_v1(Config_v1* config);
+void config_print_v1(const Config_v1* config);
+int config_validate_v1(const Config_v1* config);
+
+#endif
+EOF
+
+cat > configlib_v1.c << 'EOF'
+#include "configlib_v1.h"
+#include <stdio.h>
+#include <string.h>
+
+void config_init_v1(Config_v1* config) {
+    if (config == NULL) return;
+    
+    strcpy(config->name, "default");
+    config->timeout = 30;
+    config->max_connections = 100;
+}
+
+void config_print_v1(const Config_v1* config) {
+    if (config == NULL) return;
+    
+    printf("=== Конфигурация v1.0 ===\n");
+    printf("Имя: %s\n", config->name);
+    printf("Таймаут: %d сек\n", config->timeout);
+    printf("Макс. подключений: %d\n", config->max_connections);
+}
+
+int config_validate_v1(const Config_v1* config) {
+    if (config == NULL) return 0;
+    
+    if (config->timeout <= 0) {
+        printf("Ошибка: таймаут должен быть положительным\n");
+        return 0;
+    }
+    
+    if (config->max_connections <= 0) {
+        printf("Ошибка: максимальное количество подключений должно быть положительным\n");
+        return 0;
+    }
+    
+    return 1;
+}
+EOF
+
+# 2. Создаем вторую версию библиотеки (v2.0) с новыми функциями
+cat > configlib_v2.h << 'EOF'
+#ifndef CONFIGLIB_V2_H
+#define CONFIGLIB_V2_H
+
+// Конфигурационная библиотека v2.0
+// Новая версия с дополнительными полями
+typedef struct {
+    char name[50];
+    int timeout;
+    int max_connections;
+    int cache_size;      // Новое поле в v2.0
+    int enable_logging;  // Новое поле в v2.0
+} Config_v2;
+
+void config_init_v2(Config_v2* config);
+void config_print_v2(const Config_v2* config);
+int config_validate_v2(const Config_v2* config);
+void config_set_logging(Config_v2* config, int enable);  // Новая функция в v2.0
+
+#endif
+EOF
+
+cat > configlib_v2.c << 'EOF'
+#include "configlib_v2.h"
+#include <stdio.h>
+#include <string.h>
+
+void config_init_v2(Config_v2* config) {
+    if (config == NULL) return;
+    
+    strcpy(config->name, "default");
+    config->timeout = 30;
+    config->max_connections = 100;
+    config->cache_size = 1024;      // Значение по умолчанию для нового поля
+    config->enable_logging = 1;     // Значение по умолчанию для нового поля
+}
+
+void config_print_v2(const Config_v2* config) {
+    if (config == NULL) return;
+    
+    printf("=== Конфигурация v2.0 ===\n");
+    printf("Имя: %s\n", config->name);
+    printf("Таймаут: %d сек\n", config->timeout);
+    printf("Макс. подключений: %d\n", config->max_connections);
+    printf("Размер кэша: %d MB\n", config->cache_size);
+    printf("Логирование: %s\n", config->enable_logging ? "включено" : "выключено");
+}
+
+int config_validate_v2(const Config_v2* config) {
+    if (config == NULL) return 0;
+    
+    if (config->timeout <= 0) {
+        printf("Ошибка: таймаут должен быть положительным\n");
+        return 0;
+    }
+    
+    if (config->max_connections <= 0) {
+        printf("Ошибка: максимальное количество подключений должно быть положительным\n");
+        return 0;
+    }
+    
+    if (config->cache_size < 0) {
+        printf("Ошибка: размер кэша не может быть отрицательным\n");
+        return 0;
+    }
+    
+    return 1;
+}
+
+void config_set_logging(Config_v2* config, int enable) {
+    if (config == NULL) return;
+    config->enable_logging = enable;
+}
+EOF
+
+# 3. Компилируем обе версии библиотеки
+# Версия 1.0
+gcc -c -fPIC configlib_v1.c -o configlib_v1.o
+gcc -shared -Wl,-soname,libconfiglib.so.1 -o libconfiglib.so.1.0.0 configlib_v1.o
+
+# Версия 2.0  
+gcc -c -fPIC configlib_v2.c -o configlib_v2.o
+gcc -shared -Wl,-soname,libconfiglib.so.2 -o libconfiglib.so.2.0.0 configlib_v2.o
+
+# 4. Создаем симлинки
+ln -sf libconfiglib.so.1.0.0 libconfiglib.so.1
+ln -sf libconfiglib.so.2.0.0 libconfiglib.so.2
+ln -sf libconfiglib.so.1 libconfiglib.so  # По умолчанию используем v1
+
+# 5. Создаем программу, скомпилированную с v1.0
+cat > app_v1.c << 'EOF'
+#include <stdio.h>
+#include "configlib_v1.h"
+
+int main() {
+    printf("Приложение, скомпилированное с configlib v1.0\n");
+    
+    Config_v1 config;
+    config_init_v1(&config);
+    
+    // Настраиваем параметры
+    strcpy(config.name, "myapp_v1");
+    config.timeout = 60;
+    config.max_connections = 200;
+    
+    config_print_v1(&config);
+    
+    if (config_validate_v1(&config)) {
+        printf("Конфигурация валидна!\n");
+    } else {
+        printf("Конфигурация невалидна!\n");
+    }
+    
+    return 0;
+}
+EOF
+
+# 6. Создаем программу, скомпилированную с v2.0
+cat > app_v2.c << 'EOF'
+#include <stdio.h>
+#include "configlib_v2.h"
+
+int main() {
+    printf("Приложение, скомпилированное с configlib v2.0\n");
+    
+    Config_v2 config;
+    config_init_v2(&config);
+    
+    // Настраиваем параметры
+    strcpy(config.name, "myapp_v2");
+    config.timeout = 60;
+    config.max_connections = 200;
+    config.cache_size = 2048;       // Используем новое поле из v2.0
+    config_set_logging(&config, 0); // Используем новую функцию из v2.0
+    
+    config_print_v2(&config);
+    
+    if (config_validate_v2(&config)) {
+        printf("Конфигурация валидна!\n");
+    } else {
+        printf("Конфигурация невалидна!\n");
+    }
+    
+    return 0;
+}
+EOF
+
+# 7. Компилируем обе программы
+gcc app_v1.c -L. -lconfiglib -o app_v1
+gcc app_v2.c -L. -lconfiglib -o app_v2
+
+# 8. Тестируем с разными версиями библиотеки
+export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
+
+echo "=== Тест с версией 1.0 ==="
+ln -sf libconfiglib.so.1 libconfiglib.so
+./app_v1
+./app_v2 || echo "app_v2 не работает с v1.0 (ожидаемо)"
+
+echo -e "\n=== Тест с версией 2.0 ==="
+ln -sf libconfiglib.so.2 libconfiglib.so
+./app_v1
+./app_v2
+
+# 9. Смотрим зависимости программ
+echo -e "\n=== Зависимости app_v1 ==="
+ldd app_v1 | grep configlib
+
+echo -e "\n=== Зависимости app_v2 ==="
+ldd app_v2 | grep configlib
+```
+
+### **Пример 4: Динамическая загрузка библиотек во время выполнения**
+
+**Цель:** Научиться загружать библиотеки и использовать их функции во время выполнения программы.
+
+```bash
+# 1. Создаем библиотеку с плагинами
+cat > pluginlib.h << 'EOF'
+#ifndef PLUGINLIB_H
+#define PLUGINLIB_H
+
+typedef struct {
+    char name[50];
+    char version[20];
+    void (*initialize)(void);
+    void (*process)(const char* data);
+    void (*cleanup)(void);
+} Plugin;
+
+// Функции для работы с плагинами
+Plugin* load_plugin(const char* plugin_name);
+void unload_plugin(Plugin* plugin);
+
+#endif
+EOF
+
+cat > pluginlib.c << 'EOF'
+#include "pluginlib.h"
+#include <stdio.h>
+#include <string.h>
+#include <dlfcn.h>
+
+Plugin* load_plugin(const char* plugin_name) {
+    if (plugin_name == NULL) return NULL;
+    
+    // Формируем имя файла библиотеки
+    char libname[100];
+    snprintf(libname, sizeof(libname), "./lib%s.so", plugin_name);
+    
+    // Загружаем библиотеку
+    void* handle = dlopen(libname, RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "Ошибка загрузки плагина %s: %s\n", plugin_name, dlerror());
+        return NULL;
+    }
+    
+    // Создаем структуру плагина
+    Plugin* plugin = malloc(sizeof(Plugin));
+    if (!plugin) {
+        dlclose(handle);
+        return NULL;
+    }
+    
+    // Загружаем функции из библиотеки
+    void (*get_name)(char*) = dlsym(handle, "get_plugin_name");
+    void (*get_version)(char*) = dlsym(handle, "get_plugin_version");
+    void (*init_func)(void) = dlsym(handle, "plugin_initialize");
+    void (*process_func)(const char*) = dlsym(handle, "plugin_process");
+    void (*cleanup_func)(void) = dlsym(handle, "plugin_cleanup");
+    
+    if (!get_name || !get_version || !init_func || !process_func || !cleanup_func) {
+        fprintf(stderr, "Ошибка: не все функции найдены в плагине %s\n", plugin_name);
+        free(plugin);
+        dlclose(handle);
+        return NULL;
+    }
+    
+    // Заполняем структуру
+    get_name(plugin->name);
+    get_version(plugin->version);
+    plugin->initialize = init_func;
+    plugin->process = process_func;
+    plugin->cleanup = cleanup_func;
+    
+    // Сохраняем handle для последующего закрытия
+    plugin->handle = handle;
+    
+    return plugin;
+}
+
+void unload_plugin(Plugin* plugin) {
+    if (plugin == NULL) return;
+    
+    if (plugin->handle) {
+        dlclose(plugin->handle);
+    }
+    free(plugin);
+}
+EOF
+
+# 2. Создаем первый плагин
+cat > plugin_a.c << 'EOF'
+#include <stdio.h>
+#include <string.h>
+
+void get_plugin_name(char* name) {
+    strcpy(name, "TextProcessor");
+}
+
+void get_plugin_version(char* version) {
+    strcpy(version, "1.0");
+}
+
+void plugin_initialize(void) {
+    printf("Плагин TextProcessor инициализирован\n");
+}
+
+void plugin_process(const char* data) {
+    printf("Обработка текста: '");
+    for (int i = 0; data[i]; i++) {
+        if (data[i] >= 'a' && data[i] <= 'z') {
+            putchar(data[i] - 32); // В верхний регистр
+        } else {
+            putchar(data[i]);
         }
     }
-    return result;
+    printf("'\n");
 }
 
-int main() {
-    clock_t start = clock();
-    
-    int total = 0;
-    for (int i = 0; i < 100; i++) {
-        total += expensive_calculation(100);
-    }
-    
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-    
-    printf("Result: %d\n", total);
-    printf("Time: %.4f seconds\n", time_spent);
-    
-    return 0;
+void plugin_cleanup(void) {
+    printf("Плагин TextProcessor завершил работу\n");
 }
 EOF
 
-# 2. Компилируем без оптимизаций
-gcc -O0 optimization_test.c -o optimization_test_O0
-time ./optimization_test_O0
-
-# 3. Компилируем с базовыми оптимизациями
-gcc -O1 optimization_test.c -o optimization_test_O1
-time ./optimization_test_O1
-
-# 4. Компилируем с агрессивными оптимизациями
-gcc -O2 optimization_test.c -o optimization_test_O2
-time ./optimization_test_O2
-
-# 5. Компилируем с максимальными оптимизациями
-gcc -O3 optimization_test.c -o optimization_test_O3
-time ./optimization_test_O3
-
-# 6. Сравним размеры исполняемых файлов
-ls -la optimization_test_*
-
-# 7. Посмотрим на разницу в ассемблерном коде
-gcc -O0 -S optimization_test.c -o optimization_test_O0.s
-gcc -O2 -S optimization_test.c -o optimization_test_O2.s
-
-# 8. Сравним количество строк в ассемблерных файлах
-wc -l optimization_test_*.s
-```
-
-### **Пример 8: Работа с профилированием gprof**
-
-**Цель:** Научиться использовать профилировщик для оптимизации производительности.
-
-```bash
-# 1. Создаем программу для профилирования
-cat > profile_me.c << 'EOF'
+# 3. Создаем второй плагин
+cat > plugin_b.c << 'EOF'
 #include <stdio.h>
-#include <time.h>
+#include <string.h>
 
-void fast_function() {
-    // Быстрая функция
-    for (int i = 0; i < 1000; i++) {
-        volatile int x = i * 2; // volatile чтобы компилятор не оптимизировал
+void get_plugin_name(char* name) {
+    strcpy(name, "Calculator");
+}
+
+void get_plugin_version(char* version) {
+    strcpy(version, "1.1");
+}
+
+void plugin_initialize(void) {
+    printf("Плагин Calculator инициализирован\n");
+}
+
+void plugin_process(const char* data) {
+    int a, b;
+    char op;
+    if (sscanf(data, "%d %c %d", &a, &op, &b) == 3) {
+        int result = 0;
+        switch (op) {
+            case '+': result = a + b; break;
+            case '-': result = a - b; break;
+            case '*': result = a * b; break;
+            case '/': 
+                if (b != 0) result = a / b;
+                else { printf("Ошибка: деление на ноль\n"); return; }
+                break;
+            default: printf("Неизвестная операция: %c\n", op); return;
+        }
+        printf("Результат: %d %c %d = %d\n", a, op, b, result);
+    } else {
+        printf("Неверный формат данных. Используйте: число операция число\n");
     }
 }
 
-void slow_function() {
-    // Медленная функция
-    for (int i = 0; i < 1000000; i++) {
-        volatile int x = i * 3;
-    }
-}
-
-void medium_function() {
-    // Функция средней скорости
-    for (int i = 0; i < 100000; i++) {
-        volatile int x = i * 4;
-    }
-}
-
-int main() {
-    printf("Starting profiling demo...\n");
-    
-    for (int i = 0; i < 10; i++) {
-        fast_function();
-        medium_function();
-        slow_function();
-    }
-    
-    printf("Profiling demo completed.\n");
-    return 0;
+void plugin_cleanup(void) {
+    printf("Плагин Calculator завершил работу\n");
 }
 EOF
 
-# 2. Компилируем с поддержкой профилирования
-gcc -pg profile_me.c -o profile_me
+# 4. Компилируем плагины как разделяемые библиотеки
+gcc -c -fPIC plugin_a.c -o plugin_a.o
+gcc -shared -o libplugin_a.so plugin_a.o
 
-# 3. Запускаем программу (создаст файл gmon.out)
-./profile_me
+gcc -c -fPIC plugin_b.c -o plugin_b.o
+gcc -shared -o libplugin_b.so plugin_b.o
 
-# 4. Анализируем результаты профилирования
-gprof profile_me gmon.out > analysis.txt
+# 5. Компилируем основную библиотеку для работы с плагинами
+gcc -c -fPIC pluginlib.c -o pluginlib.o
+gcc -shared -o libpluginlib.so pluginlib.o -ldl
 
-# 5. Смотрим результаты
-head -30 analysis.txt
-
-# 6. Создаем визуализацию (если установлен gprof2dot)
-# gprof profile_me | gprof2dot | dot -Tpng -o profile.png
-
-# 7. Альтернативный способ: текстовый анализ
-cat analysis.txt | grep -A 10 "time seconds"
-
-# 8. Очищаем временные файлы
-rm -f gmon.out analysis.txt
-```
-
-### **Пример 9: Статический анализ кода**
-
-**Цель:** Научиться использовать инструменты статического анализа.
-
-```bash
-# 1. Устанавливаем инструменты статического анализа
-sudo apt install splint cppcheck
-
-# 2. Создаем программу с потенциальными проблемами
-cat > static_analysis.c << 'EOF'
+# 6. Создаем основную программу, которая использует динамическую загрузку
+cat > plugin_manager.c << 'EOF'
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-void potential_problems(char* input) {
-    char buffer[10];
-    strcpy(buffer, input);  // Потенциальное переполнение буфера
-    
-    int uninitialized;
-    if (uninitialized > 0) {  // Использование неинициализированной переменной
-        printf("Positive\n");
-    }
-    
-    int* ptr = malloc(sizeof(int));
-    // Утечка памяти - нет free(ptr)
-}
+#include "pluginlib.h"
 
 int main() {
-    char test[] = "This is a very long string that might cause problems";
-    potential_problems(test);
+    printf("=== Менеджер плагинов ===\n\n");
+    
+    // Доступные плагины
+    const char* plugins[] = {"plugin_a", "plugin_b", NULL};
+    
+    // Загружаем и тестируем каждый плагин
+    for (int i = 0; plugins[i] != NULL; i++) {
+        printf("Загрузка плагина: %s\n", plugins[i]);
+        
+        Plugin* plugin = load_plugin(plugins[i]);
+        if (plugin == NULL) {
+            printf("Не удалось загрузить плагин %s\n\n", plugins[i]);
+            continue;
+        }
+        
+        printf("Загружен плагин: %s v%s\n", plugin->name, plugin->version);
+        
+        // Используем плагин
+        plugin->initialize();
+        
+        // Тестовые данные для каждого плагина
+        if (strcmp(plugins[i], "plugin_a") == 0) {
+            plugin->process("Hello World from Plugin A!");
+        } else if (strcmp(plugins[i], "plugin_b") == 0) {
+            plugin->process("10 + 5");
+            plugin->process("20 * 3");
+        }
+        
+        plugin->cleanup();
+        unload_plugin(plugin);
+        
+        printf("Плагин %s выгружен\n\n", plugins[i]);
+    }
+    
+    printf("Все плагины протестированы\n");
     return 0;
 }
 EOF
 
-# 3. Используем splint для статического анализа
-splint static_analysis.c
+# 7. Компилируем основную программу
+gcc plugin_manager.c -L. -lpluginlib -ldl -o plugin_manager
 
-# 4. Используем cppcheck
-cppcheck --enable=all static_analysis.c
-
-# 5. Компилируем с дополнительными проверками GCC
-gcc -Wall -Wextra -Wpedantic static_analysis.c -o static_analysis
-
-# 6. Используем санитайзеры для динамического анализа
-gcc -fsanitize=address -fsanitize=undefined static_analysis.c -o static_analysis_sanitized
-./static_analysis_sanitized
-
-# 7. Анализируем с помощью valgrind (если установлен)
-# valgrind --leak-check=full ./static_analysis
-
-# 8. Создаем более качественный код и проверяем снова
-cat > fixed_code.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-void safe_function(const char* input) {
-    char buffer[10];
-    strncpy(buffer, input, sizeof(buffer) - 1);
-    buffer[sizeof(buffer) - 1] = '\0';
-    
-    int initialized = 0;
-    if (initialized > 0) {
-        printf("Positive\n");
-    }
-    
-    int* ptr = malloc(sizeof(int));
-    if (ptr != NULL) {
-        *ptr = 42;
-        free(ptr);
-    }
-}
-
-int main() {
-    char test[] = "Short";
-    safe_function(test);
-    return 0;
-}
-EOF
-
-# 9. Проверяем исправленный код
-splint fixed_code.c
-cppcheck fixed_code.c
-```
-
-### **Пример 10: Создание и использование shared библиотек**
-
-**Цель:** Научиться работать с динамическими библиотеками.
-
-```bash
-# 1. Создаем shared library
-gcc -c -fPIC math_operations.c -o math_operations_pic.o
-gcc -shared -o libmath.so math_operations_pic.o
-
-# 2. Компилируем программу с dynamic linking
-gcc main.c -L. -lmath -o calculator_dynamic
-
-# 3. Пробуем запустить (скорее всего не найдет библиотеку)
-./calculator_dynamic || echo "Library not found"
-
-# 4. Добавляем текущую директорию в путь поиска библиотек
+# 8. Запускаем менеджер плагинов
 export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
-./calculator_dynamic
-
-# 5. Проверяем зависимости
-ldd calculator_dynamic
-
-# 6. Устанавливаем библиотеку в системную директорию (для демонстрации)
-sudo cp libmath.so /usr/local/lib/
-sudo ldconfig
-
-# 7. Теперь можем запускать без LD_LIBRARY_PATH
-unset LD_LIBRARY_PATH
-./calculator_dynamic
-
-# 8. Создаем версионную библиотеку
-gcc -shared -Wl,-soname,libmath.so.1 -o libmath.so.1.0 math_operations_pic.o
-ln -sf libmath.so.1.0 libmath.so.1
-ln -sf libmath.so.1 libmath.so
-
-# 9. Проверяем симлинки
-ls -la libmath.so*
-
-# 10. Очищаем системную директорию
-sudo rm /usr/local/lib/libmath.so
-sudo ldconfig
-```
-
-### **Пример 11: Работа с системой сборки Make**
-
-**Цель:** Научиться создавать и использовать Makefiles.
-
-```bash
-# 1. Создаем простой Makefile
-cat > Makefile << 'EOF'
-# Компилятор и флаги
-CC = gcc
-CFLAGS = -Wall -Wextra -g
-LDFLAGS = 
-
-# Цели
-TARGET = calculator
-SOURCES = main.c math_operations.c
-OBJECTS = $(SOURCES:.c=.o)
-
-# Правила по умолчанию
-all: $(TARGET)
-
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean:
-	rm -f $(TARGET) $(OBJECTS)
-
-install: $(TARGET)
-	cp $(TARGET) /usr/local/bin/
-
-uninstall:
-	rm -f /usr/local/bin/$(TARGET)
-
-.PHONY: all clean install uninstall
-EOF
-
-# 2. Собираем проект с помощью make
-make
-
-# 3. Запускаем программу
-./calculator
-
-# 4. Очищаем собранные файлы
-make clean
-
-# 5. Собираем снова
-make
-
-# 6. Создаем более сложный Makefile с зависимостями
-cat > Makefile.advanced << 'EOF'
-CC = gcc
-CFLAGS = -Wall -Wextra -g -MD
-LDFLAGS = 
-TARGET = calculator
-SOURCES = main.c math_operations.c string_operations.c
-OBJECTS = $(SOURCES:.c=.o)
-DEPS = $(OBJECTS:.o=.d)
-
-all: $(TARGET)
-
-$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-clean:
-	rm -f $(TARGET) $(OBJECTS) $(DEPS)
-
-distclean: clean
-	rm -f *~
-
-install: $(TARGET)
-	cp $(TARGET) /usr/local/bin/
-
-# Включаем зависимости
--include $(DEPS)
-
-.PHONY: all clean distclean install
-EOF
-
-# 7. Используем продвинутый Makefile
-make -f Makefile.advanced
-
-# 8. Смотрим созданные файлы зависимостей
-cat main.d
-```
-
-### **Пример 12: Отладка с помощью Valgrind**
-
-**Цель:** Научиться использовать Valgrind для поиска утечек памяти и ошибок.
-
-```bash
-# 1. Устанавливаем Valgrind
-sudo apt install valgrind
-
-# 2. Создаем программу с утечками памяти
-cat > memory_leak.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-void create_leak() {
-    char* buffer = malloc(100);
-    strcpy(buffer, "This memory will be leaked");
-    // Нет free(buffer) - утечка памяти
-}
-
-void double_free() {
-    int* ptr = malloc(sizeof(int));
-    *ptr = 42;
-    free(ptr);
-    free(ptr);  // Двойное освобождение
-}
-
-void use_after_free() {
-    char* str = malloc(50);
-    strcpy(str, "Hello");
-    free(str);
-    printf("%s\n", str);  // Использование после освобождения
-}
-
-int main() {
-    printf("Memory leak demo\n");
-    create_leak();
-    
-    // double_free();  // Раскомментировать для демонстрации
-    // use_after_free();  // Раскомментировать для демонстрации
-    
-    return 0;
-}
-EOF
-
-# 3. Компилируем с отладочной информацией
-gcc -g memory_leak.c -o memory_leak
-
-# 4. Запускаем Valgrind для проверки утечек
-valgrind --leak-check=full ./memory_leak
-
-# 5. Анализируем вывод Valgrind
-# Обращаем внимание на:
-# - definitely lost: точно утерянная память
-# - indirectly lost: косвенно утерянная
-# - possibly lost: возможно утерянная
-
-# 6. Запускаем с дополнительными проверками
-valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all ./memory_leak
-
-# 7. Проверяем кеш промахи (если нужно)
-# valgrind --tool=cachegrind ./memory_leak
-
-# 8. Создаем исправленную версию
-cat > memory_fixed.c << 'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-void no_leak() {
-    char* buffer = malloc(100);
-    if (buffer != NULL) {
-        strcpy(buffer, "This memory will be properly freed");
-        printf("%s\n", buffer);
-        free(buffer);
-    }
-}
-
-void proper_memory_management() {
-    int* ptr = malloc(sizeof(int));
-    if (ptr != NULL) {
-        *ptr = 42;
-        free(ptr);
-        ptr = NULL;  // Хорошая практика
-    }
-}
-
-int main() {
-    printf("Proper memory management demo\n");
-    no_leak();
-    proper_memory_management();
-    return 0;
-}
-EOF
-
-# 9. Проверяем исправленную версию
-gcc -g memory_fixed.c -o memory_fixed
-valgrind --leak-check=full ./memory_fixed
-```
-
-### **Пример 13: Кросс-компиляция и разные архитектуры**
-
-**Цель:** Понять основы кросс-компиляции.
-
-```bash
-# 1. Проверяем текущую архитектуру
-uname -m
-
-# 2. Компилируем с указанием архитектуры
-gcc -m32 hello.c -o hello_32bit 2>/dev/null || echo "32-bit support not installed"
-
-# 3. Устанавливаем поддержку 32-битных программ (если нужно)
-sudo apt install gcc-multilib
-
-# 4. Пробуем снова
-gcc -m32 hello.c -o hello_32bit
-file hello_32bit
-
-# 5. Сравниваем с 64-битной версией
-gcc hello.c -o hello_64bit
-file hello_64bit
-
-# 6. Смотрим различия в размерах
-ls -la hello_*
-
-# 7. Компилируем с разными уровнями оптимизации для разных архитектур
-gcc -m32 -O2 hello.c -o hello_32bit_O2
-gcc -m64 -O2 hello.c -o hello_64bit_O2
-
-# 8. Создаем программу для тестирования выравнивания памяти
-cat > alignment_test.c << 'EOF'
-#include <stdio.h>
-#include <stddef.h>
-
-struct test_struct {
-    char a;
-    int b;
-    char c;
-    double d;
-};
-
-int main() {
-    printf("Size of struct: %zu\n", sizeof(struct test_struct));
-    printf("Offset of a: %zu\n", offsetof(struct test_struct, a));
-    printf("Offset of b: %zu\n", offsetof(struct test_struct, b));
-    printf("Offset of c: %zu\n", offsetof(struct test_struct, c));
-    printf("Offset of d: %zu\n", offsetof(struct test_struct, d));
-    return 0;
-}
-EOF
-
-# 9. Компилируем для разных архитектур и сравниваем
-gcc -m32 alignment_test.c -o alignment_32
-gcc -m64 alignment_test.c -o alignment_64
-
-./alignment_32
-./alignment_64
-```
-
-### **Пример 14: Работа с ассемблером**
-
-**Цель:** Понять связь между C кодом и ассемблером.
-
-```bash
-# 1. Компилируем C код в ассемблер
-gcc -S hello.c -o hello.s
-
-# 2. Смотрим сгенерированный ассемблерный код
-cat hello.s
-
-# 3. Компилируем с разными уровнями оптимизации и сравниваем
-gcc -S -O0 hello.c -o hello_O0.s
-gcc -S -O2 hello.c -o hello_O2.s
-
-# 4. Сравниваем размеры ассемблерных файлов
-wc -l hello_*.s
-
-# 5. Создаем программу с inline ассемблером
-cat > inline_asm.c << 'EOF'
-#include <stdio.h>
-
-int main() {
-    int a = 5, b = 10, result;
-    
-    // Inline assembly для сложения
-    asm volatile (
-        "add %1, %2, %0"
-        : "=r" (result)
-        : "r" (a), "r" (b)
-    );
-    
-    printf("Result: %d\n", result);
-    
-    // Получаем значение регистра
-    unsigned long stack_pointer;
-    asm volatile ("mov %0, sp" : "=r" (stack_pointer));
-    printf("Stack pointer: 0x%lx\n", stack_pointer);
-    
-    return 0;
-}
-EOF
-
-# 6. Компилируем и запускаем
-gcc inline_asm.c -o inline_asm
-./inline_asm
-
-# 7. Смотрим ассемблерный код с inline ассемблером
-gcc -S inline_asm.c -o inline_asm.s
-cat inline_asm.s
-
-# 8. Создаем чистый ассемблерный файл
-cat > pure_asm.s << 'EOF'
-.global _start
-.section .text
-
-_start:
-    # write system call
-    mov x0, #1          # stdout
-    ldr x1, =message    # buffer
-    ldr x2, =len        # length
-    mov x8, #64         # write syscall number
-    svc #0              # system call
-
-    # exit system call
-    mov x0, #0          # exit status
-    mov x8, #93         # exit syscall number
-    svc #0
-
-.section .data
-message:
-    .asciz "Hello from pure assembly!\n"
-len = . - message
-EOF
-
-# 9. Компилируем и линкуем ассемблерную программу
-# as pure_asm.s -o pure_asm.o
-# ld pure_asm.o -o pure_asm
-# ./pure_asm
-```
-
-### **Пример 15: Интеграция с IDE и системами сборки**
-
-**Цель:** Научиться настраивать продвинутые системы сборки.
-
-```bash
-# 1. Создаем CMakeLists.txt для CMake
-cat > CMakeLists.txt << 'EOF'
-cmake_minimum_required(VERSION 3.10)
-project(CalculatorProject)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-
-# Исполняемый файл
-add_executable(calculator 
-    main.c 
-    math_operations.c 
-    string_operations.c
-)
-
-# Настройки компилятора
-target_compile_options(calculator PRIVATE -Wall -Wextra -g)
-
-# Статическая библиотека
-add_library(math_static STATIC math_operations.c)
-target_include_directories(math_static PUBLIC .)
-
-# Shared библиотека
-add_library(math_shared SHARED math_operations.c)
-target_include_directories(math_shared PUBLIC .)
-
-# Тесты (если есть)
-enable_testing()
-add_test(NAME calculator_test COMMAND calculator)
-EOF
-
-# 2. Создаем build директорию и собираем проект
-mkdir build
-cd build
-cmake ..
-make
-
-# 3. Запускаем программу
-./calculator
-
-# 4. Смотрим какие цели доступны
-make help
-
-# 5. Создаем простой конфигурационный файл для autotools
-cat > configure.ac << 'EOF'
-AC_INIT([calculator], [1.0], [your@email.com])
-AM_INIT_AUTOMAKE
-AC_PROG_CC
-AC_CONFIG_FILES([Makefile])
-AC_OUTPUT
-EOF
-
-cat > Makefile.am << 'EOF'
-bin_PROGRAMS = calculator
-calculator_SOURCES = main.c math_operations.c string_operations.c
-EOF
-
-# 6. Устанавливаем pkg-config файл для нашей библиотеки
-mkdir -p pkgconfig
-cat > pkgconfig/libmath.pc << 'EOF'
-prefix=/usr/local
-exec_prefix=${prefix}
-libdir=${exec_prefix}/lib
-includedir=${prefix}/include
-
-Name: libmath
-Description: Simple math library
-Version: 1.0.0
-Libs: -L${libdir} -lmath
-Cflags: -I${includedir}
-EOF
-
-# 7. Создаем скрипт для сборки разных конфигураций
-cat > build_all.sh << 'EOF'
-#!/bin/bash
-
-echo "Building debug version..."
-mkdir -p build_debug
-cd build_debug
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make
-cd ..
-
-echo "Building release version..."
-mkdir -p build_release
-cd build_release
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
-cd ..
-
-echo "Building with sanitizers..."
-mkdir -p build_sanitize
-cd build_sanitize
-cmake -DCMAKE_BUILD_TYPE=Debug -DUSE_SANITIZERS=ON ..
-make
-cd ..
-
-echo "Build complete!"
-ls -la build_*/calculator
-EOF
-
-chmod +x build_all.sh
-./build_all.sh
+./plugin_manager
 ```
