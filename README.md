@@ -8,7 +8,7 @@
 |СЕМЕСТР|1 семестр, 2025/2026 уч. год|
 
 Ссылка на материал: <br>
-https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-4
+https://github.com/astafiev-rustam/programming-in-the-linux-operating-system/tree/lecture-1-5
 
 # **Лекция №5: Инструментарий разработчика: компиляция и отладка**
 
