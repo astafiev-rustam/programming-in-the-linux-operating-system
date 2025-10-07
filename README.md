@@ -814,3 +814,197 @@ gcc plugin_manager.c -L. -lpluginlib -ldl -o plugin_manager
 export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
 ./plugin_manager
 ```
+### **Пример 5: Отладка и диагностика разделяемых библиотек**
+
+**Цель:** Освоить инструменты для отладки и диагностики проблем с разделяемыми библиотеками.
+
+```bash
+# 1. Создаем библиотеку с потенциальными проблемами для демонстрации
+cat > problemlib.h << 'EOF'
+#ifndef PROBLEMLIB_H
+#define PROBLEMLIB_H
+
+void memory_leak_function(void);
+void buffer_overflow_function(void);
+void uninitialized_memory_function(void);
+void working_function(void);
+
+#endif
+EOF
+
+cat > problemlib.c << 'EOF'
+#include "problemlib.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void memory_leak_function(void) {
+    printf("Создаем утечку памяти...\n");
+    char* buffer = malloc(1024);
+    strcpy(buffer, "This memory will be leaked");
+    // Нет free(buffer) - утечка!
+}
+
+void buffer_overflow_function(void) {
+    printf("Создаем переполнение буфера...\n");
+    char small_buffer[10];
+    strcpy(small_buffer, "This string is too long for the buffer"); // Переполнение!
+}
+
+void uninitialized_memory_function(void) {
+    printf("Используем неинициализированную память...\n");
+    int* ptr = malloc(sizeof(int));
+    printf("Значение: %d\n", *ptr); // Использование неинициализированной памяти
+    free(ptr);
+}
+
+void working_function(void) {
+    printf("Эта функция работает корректно\n");
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "Hello World");
+    printf("Результат: %s\n", buffer);
+}
+EOF
+
+# 2. Компилируем проблемную библиотеку
+gcc -c -fPIC -g problemlib.c -o problemlib.o
+gcc -shared -g -o libproblemlib.so problemlib.o
+
+# 3. Создаем тестовую программу
+cat > debug_test.c << 'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include "problemlib.h"
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Использование: %s <test_number>\n", argv[0]);
+        printf("  test_number: 1 - утечка памяти, 2 - переполнение буфера, 3 - неинициализированная память, 4 - корректная работа\n");
+        return 1;
+    }
+    
+    int test_num = atoi(argv[1]);
+    
+    switch (test_num) {
+        case 1:
+            memory_leak_function();
+            break;
+        case 2:
+            buffer_overflow_function();
+            break;
+        case 3:
+            uninitialized_memory_function();
+            break;
+        case 4:
+            working_function();
+            break;
+        default:
+            printf("Неизвестный тест: %d\n", test_num);
+            return 1;
+    }
+    
+    return 0;
+}
+EOF
+
+# 4. Компилируем тестовую программу
+gcc -g debug_test.c -L. -lproblemlib -o debug_test
+
+# 5. Инструменты диагностики
+
+echo "=== 1. Анализ зависимостей с помощью ldd ==="
+ldd debug_test
+
+echo -e "\n=== 2. Просмотр символов в библиотеке с помощью nm ==="
+nm -D libproblemlib.so | head -20
+
+echo -e "\n=== 3. Детальная информация о библиотеке с помощью objdump ==="
+objdump -T libproblemlib.so
+
+echo -e "\n=== 4. Поиск проблем с памятью с помощью valgrind ==="
+export LD_LIBRARY_PATH=.:$LD_LIBRARY_PATH
+valgrind --leak-check=full ./debug_test 1
+
+echo -e "\n=== 5. Отладка с помощью gdb ==="
+echo "Команды для gdb:"
+echo "  gdb ./debug_test"
+echo "  break memory_leak_function"
+echo "  run 1"
+echo "  backtrace"
+echo "  quit"
+
+echo -e "\n=== 6. Проверка безопасности с помощью checksec ==="
+# Установим checksec если не установлен
+sudo apt install checksec 2>/dev/null || echo "checksec не установлен, пропускаем..."
+if command -v checksec &> /dev/null; then
+    checksec --file=debug_test
+fi
+
+echo -e "\n=== 7. Анализ размера библиотек с помощью size ==="
+size libproblemlib.so
+
+echo -e "\n=== 8. Просмотр секций библиотеки ==="
+readelf -S libproblemlib.so | head -20
+
+echo -e "\n=== 9. Поиск строк в библиотеке ==="
+strings libproblemlib.so | grep -i "error\\|leak\\|overflow" | head -10
+
+echo -e "\n=== 10. Мониторинг системных вызовов с помощью strace ==="
+echo "Запуск: strace -o trace.txt ./debug_test 4"
+strace -o trace.txt ./debug_test 4 2>/dev/null
+echo "Последние строки strace вывода:"
+tail -10 trace.txt
+rm -f trace.txt
+
+# 6. Создаем скрипт для автоматической диагностики
+cat > library_check.sh << 'EOF'
+#!/bin/bash
+
+LIBRARY=$1
+
+if [ -z "$LIBRARY" ]; then
+    echo "Использование: $0 <library.so>"
+    exit 1
+fi
+
+if [ ! -f "$LIBRARY" ]; then
+    echo "Библиотека $LIBRARY не найдена"
+    exit 1
+fi
+
+echo "=== Диагностика библиотеки: $LIBRARY ==="
+
+echo -e "\n1. Размер и тип файла:"
+ls -la $LIBRARY
+file $LIBRARY
+
+echo -e "\n2. Зависимости:"
+ldd $LIBRARY 2>/dev/null || echo "Не удалось проверить зависимости"
+
+echo -e "\n3. Экспортируемые символы:"
+nm -D $LIBRARY 2>/dev/null | head -15
+
+echo -e "\n4. Информация о версии:"
+objdump -p $LIBRARY 2>/dev/null | grep -E "SONAME|Version"
+
+echo -e "\n5. Секции:"
+readelf -S $LIBRARY 2>/dev/null | grep -E "\.text|\.data|\.bss" | head -10
+
+echo -e "\n6. Проверка безопасности:"
+if command -v checksec &> /dev/null; then
+    checksec --file=$LIBRARY
+fi
+
+echo -e "\nДиагностика завершена"
+EOF
+
+chmod +x library_check.sh
+
+# 7. Запускаем диагностику нашей библиотеки
+./library_check.sh libproblemlib.so
+
+# 8. Очистка (опционально)
+# unset LD_LIBRARY_PATH
+# sudo rm -f /usr/local/lib/libmathlib* /usr/local/include/mathlib.h
+# sudo ldconfig
+```
